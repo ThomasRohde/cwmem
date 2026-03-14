@@ -7,10 +7,14 @@ from pathlib import Path
 def _assert_human_help(completed) -> None:
     assert completed.returncode == 0, completed
     assert "Usage:" in completed.stdout
-    assert "Repo-native institutional memory CLI." in completed.stdout
-    assert "guide" in completed.stdout
-    assert "status" in completed.stdout
-    assert "sync" in completed.stdout
+    assert "╭" in completed.stdout
+    assert "│" in completed.stdout
+    assert "cwmem stores repository-scoped memory next to your codebase" in completed.stdout
+    assert "Typical flow:" in completed.stdout
+    assert "Return machine-readable CLI documentation." in completed.stdout
+    assert "Create runtime and tracked repository scaffolding." in completed.stdout
+    assert "Run lexical and semantic retrieval over memory content." in completed.stdout
+    assert "Export or import checked-in collaboration artifacts." in completed.stdout
     try:
         json.loads(completed.stdout)
     except json.JSONDecodeError:

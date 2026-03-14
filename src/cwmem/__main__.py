@@ -13,11 +13,23 @@ from cwmem.output.envelope import (
     validation_error,
 )
 
+TOP_LEVEL_HELP = """cwmem stores repository-scoped memory next to your codebase so teams can
+capture decisions, events, entities, and relationships in a searchable,
+syncable format.
+
+Typical flow:
+  1. Run `cwmem init` to create the runtime database and tracked memory files.
+  2. Capture context with `cwmem add`, `cwmem event-add`, or `cwmem link`.
+  3. Retrieve it later with `cwmem search`, `cwmem related`, or `cwmem get`.
+  4. Keep checked-in artifacts aligned with `cwmem sync export` / `sync import`.
+
+For machine-readable schemas, workflows, and error contracts, run `cwmem guide`."""
+
 app = typer.Typer(
     add_completion=False,
     context_settings={"help_option_names": ["-h", "--help"]},
-    help="Repo-native institutional memory CLI.",
-    no_args_is_help=False,
+    help=TOP_LEVEL_HELP,
+    no_args_is_help=True,
 )
 
 setup.register(app)
@@ -30,10 +42,11 @@ maintenance.register(app)
 
 def main() -> None:
     """Run the CLI with envelope-safe error handling."""
+    command = _build_click_app()
     try:
-        if _maybe_render_human_help():
-            raise SystemExit(0)
-        app(standalone_mode=False)
+        command.main(args=sys.argv[1:], prog_name="cwmem", standalone_mode=False)
+    except click.exceptions.NoArgsIsHelpError as exc:
+        raise SystemExit(0) from exc
     except click.exceptions.ClickException as exc:
         message = exc.format_message()
         exception_type = type(exc).__name__
@@ -57,37 +70,31 @@ def main() -> None:
         raise SystemExit(90) from exc
 
 
-def _maybe_render_human_help() -> bool:
-    if len(sys.argv) == 1:
-        return _render_top_level_help()
-    if len(sys.argv) == 2 and sys.argv[1] in {"-h", "--help"}:
-        return _render_top_level_help()
-    return False
-
-
-def _render_top_level_help() -> bool:
+def _build_click_app() -> click.Command:
     command = get_command(app)
     if not isinstance(command, click.Group):  # pragma: no cover - defensive guard
         raise RuntimeError("cwmem top-level app must be a Click group")
-    command_width = max(len(name) for name in command.commands)
-    lines = [
-        "Usage: cwmem [OPTIONS] COMMAND [ARGS]...",
-        "",
-        "  Repo-native institutional memory CLI.",
-        "",
-        "Options:",
-        "  -h, --help  Show this message and exit.",
-        "",
-        "Commands:",
-    ]
+    command.help = TOP_LEVEL_HELP
+    guide = setup.build_guide_document()
+    summaries = {
+        item["name"]: _command_summary_from_catalog(item)
+        for item in guide.command_catalog
+        if " " not in item["name"]
+    }
+    summaries["sync"] = "Export or import checked-in collaboration artifacts."
     for name, subcommand in command.commands.items():
-        summary = subcommand.get_short_help_str().strip()
+        summary = summaries.get(name)
         if summary:
-            lines.append(f"  {name.ljust(command_width)}  {summary}")
-        else:
-            lines.append(f"  {name}")
-    click.echo("\n".join(lines), color=False)
-    return True
+            subcommand.help = summary
+            subcommand.short_help = summary
+    return command
+
+
+def _command_summary_from_catalog(item: dict[str, object]) -> str:
+    summary = str(item["summary"])
+    if not bool(item["implemented"]):
+        return f"{summary} [not yet implemented]"
+    return summary
 
 
 if __name__ == "__main__":

@@ -32,6 +32,7 @@ def cli_env() -> dict[str, str]:
     if existing_pythonpath:
         pythonpath_parts.append(existing_pythonpath)
     env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+    env["PYTHONIOENCODING"] = "utf-8"
     return env
 
 
@@ -51,6 +52,7 @@ def run_cli(cli_env: dict[str, str]):
                 env=cli_env,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
                 timeout=CLI_TIMEOUT_SECONDS,
             )
