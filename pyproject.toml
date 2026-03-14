@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cwmem"
+dynamic = ["version"]
+description = "Repo-native institutional memory CLI for Enterprise Architecture work."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Thomas Klok Rohde", email = "rohde.thomas@gmail.com" },
+]
+keywords = ["cli", "memory", "sqlite", "knowledge-graph", "enterprise-architecture"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Database",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "model2vec>=0.5.0",
+  "numpy>=2.1.0",
+  "orjson>=3.10.0",
+  "pydantic>=2.10.0",
+  "typer>=0.16.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ThomasRohde/cwmem"
+Repository = "https://github.com/ThomasRohde/cwmem"
+Issues = "https://github.com/ThomasRohde/cwmem/issues"
+
+[project.scripts]
+cwmem = "cwmem.__main__:main"
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.390",
+  "pytest>=8.3.0",
+  "ruff>=0.9.0",
+]
+
+[tool.hatch.version]
+path = "src/cwmem/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cwmem"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
