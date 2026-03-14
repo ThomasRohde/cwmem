@@ -228,8 +228,10 @@ class SearchQuery(BaseModel):
 
 
 class SearchHitExplanation(BaseModel):
-    lexical_rank: int
-    matched_fields: list[str]
+    lexical_rank: int | None = None
+    semantic_rank: int | None = None
+    rrf_score: float | None = None
+    matched_fields: list[str] = Field(default_factory=list)
 
 
 class SearchHit(BaseModel):
@@ -240,6 +242,24 @@ class SearchHit(BaseModel):
     explanation: SearchHitExplanation
 
 
+class ModelManifest(BaseModel):
+    model_name: str
+    model_version: str
+    vector_dim: int
+    model_path: str
+    normalize: bool = True
+    license: str = "MIT"
+    notes: str = ""
+
+
+class EmbeddingRecord(BaseModel):
+    resource_id: str
+    resource_type: str
+    content_fingerprint: str
+    model_version: str
+    vector_blob: bytes  # numpy float32 array serialized with tobytes()
+
+
 class StatsResult(BaseModel):
     entries: int
     events: int
@@ -247,7 +267,9 @@ class StatsResult(BaseModel):
     events_fts: int
     entities: int
     entities_fts: int
+    embeddings: int = 0
     last_build_at: str | None = None
+    embedding_model: str | None = None
 
 
 class ValidationIssue(BaseModel):

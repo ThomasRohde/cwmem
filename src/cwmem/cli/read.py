@@ -7,13 +7,11 @@ from typing import Any, TypeVar
 import typer
 from pydantic import BaseModel, ValidationError
 
-from cwmem.cli.setup import placeholder_command
 from cwmem.core.export import render_entry_jsonl, render_entry_markdown, render_event_jsonl
 from cwmem.core.models import CommandError, ListEntriesQuery, LogQuery, SearchQuery
-from cwmem.core.store import get_entry, list_entries, list_events, search
-from cwmem.output.envelope import AppError, run_cli_command, validation_error
+from cwmem.core.store import get_entry, list_entries, list_events, search_entries
+from cwmem.output.envelope import AppError, run_cli_command
 
-PLACEHOLDER_CONTEXT = {"allow_extra_args": True, "ignore_unknown_options": True}
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
@@ -23,41 +21,41 @@ def _build_query(model_type: type[ModelT], payload: dict[str, object]) -> ModelT
     except ValidationError as exc:
         raise AppError.from_command_error(
             CommandError(
-                code='ERR_VALIDATION_INPUT',
-                message='Invalid command input.',
+                code="ERR_VALIDATION_INPUT",
+                message="Invalid command input.",
                 retryable=False,
-                suggested_action='Review the command arguments and retry.',
-                details={'validation_errors': exc.errors(include_url=False)},
+                suggested_action="Review the command arguments and retry.",
+                details={"validation_errors": exc.errors(include_url=False)},
             )
         ) from exc
 
 
 def get_command(  # noqa: B008
     public_id: str = typer.Argument(...),
-    cwd: Path | None = typer.Option(None, '--cwd'),
+    cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
 
     def handler() -> dict[str, object]:
         entry = get_entry(root, public_id)
         return {
-            'entry': entry,
-            'artifacts': {
-                'markdown': render_entry_markdown(entry),
-                'jsonl': render_entry_jsonl(entry),
+            "entry": entry,
+            "artifacts": {
+                "markdown": render_entry_markdown(entry),
+                "jsonl": render_entry_jsonl(entry),
             },
         }
 
-    raise SystemExit(run_cli_command('memory.get', 'entry', handler))
+    raise SystemExit(run_cli_command("memory.get", "entry", handler))
 
 
 def list_command(  # noqa: B008
-    tag: str | None = typer.Option(None, '--tag', '--tags'),
-    entry_type: str | None = typer.Option(None, '--type'),
-    status: str | None = typer.Option(None, '--status'),
-    author: str | None = typer.Option(None, '--author'),
-    limit: int = typer.Option(50, '--limit'),
-    cwd: Path | None = typer.Option(None, '--cwd'),
+    tag: str | None = typer.Option(None, "--tag", "--tags"),
+    entry_type: str | None = typer.Option(None, "--type"),
+    status: str | None = typer.Option(None, "--status"),
+    author: str | None = typer.Option(None, "--author"),
+    limit: int = typer.Option(50, "--limit"),
+    cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
 
@@ -65,25 +63,25 @@ def list_command(  # noqa: B008
         query = _build_query(
             ListEntriesQuery,
             {
-                'tag': tag,
-                'type': entry_type,
-                'status': status,
-                'author': author,
-                'limit': limit,
+                "tag": tag,
+                "type": entry_type,
+                "status": status,
+                "author": author,
+                "limit": limit,
             },
         )
         entries = list_entries(root, query)
-        return {'entries': entries, 'count': len(entries)}
+        return {"entries": entries, "count": len(entries)}
 
-    raise SystemExit(run_cli_command('memory.list', 'entry', handler))
+    raise SystemExit(run_cli_command("memory.list", "entry", handler))
 
 
 def log_command(  # noqa: B008
-    resource: str | None = typer.Option(None, '--resource'),
-    event_type: str | None = typer.Option(None, '--event-type'),
-    tag: str | None = typer.Option(None, '--tag', '--tags'),
-    limit: int = typer.Option(50, '--limit'),
-    cwd: Path | None = typer.Option(None, '--cwd'),
+    resource: str | None = typer.Option(None, "--resource"),
+    event_type: str | None = typer.Option(None, "--event-type"),
+    tag: str | None = typer.Option(None, "--tag", "--tags"),
+    limit: int = typer.Option(50, "--limit"),
+    cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
 
@@ -91,76 +89,86 @@ def log_command(  # noqa: B008
         query = _build_query(
             LogQuery,
             {
-                'resource': resource,
-                'event_type': event_type,
-                'tag': tag,
-                'limit': limit,
+                "resource": resource,
+                "event_type": event_type,
+                "tag": tag,
+                "limit": limit,
             },
         )
         events = list_events(root, query)
         return {
-            'events': events,
-            'count': len(events),
-            'artifacts': {'jsonl': ''.join(render_event_jsonl(event) for event in events)},
+            "events": events,
+            "count": len(events),
+            "artifacts": {"jsonl": "".join(render_event_jsonl(event) for event in events)},
         }
 
-    raise SystemExit(run_cli_command('memory.log', 'event', handler))
+    raise SystemExit(run_cli_command("memory.log", "event", handler))
 
 
 def search_command(  # noqa: B008
-    q: str = typer.Argument(..., metavar='QUERY'),
-    tag: str | None = typer.Option(None, '--tag', '--tags'),
-    entry_type: str | None = typer.Option(None, '--type'),
-    author: str | None = typer.Option(None, '--author'),
-    date_from: str | None = typer.Option(None, '--from'),
-    date_to: str | None = typer.Option(None, '--to'),
-    lexical_only: bool = typer.Option(False, '--lexical-only'),
-    semantic_only: bool = typer.Option(False, '--semantic-only'),
-    limit: int = typer.Option(20, '--limit'),
-    cwd: Path | None = typer.Option(None, '--cwd'),
+    q: str = typer.Argument(...),
+    tag: str | None = typer.Option(None, "--tag"),
+    search_type: str | None = typer.Option(None, "--type"),
+    author: str | None = typer.Option(None, "--author"),
+    date_from: str | None = typer.Option(None, "--from"),
+    date_to: str | None = typer.Option(None, "--to"),
+    lexical_only: bool = typer.Option(False, "--lexical-only"),
+    semantic_only: bool = typer.Option(False, "--semantic-only"),
+    limit: int = typer.Option(20, "--limit"),
+    cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
 
     def handler() -> dict[str, Any]:
-        if semantic_only:
-            raise validation_error(
-                '`--semantic-only` is not yet implemented. '
-                'Semantic search will be available in Phase 4 (embeddings). '
-                'Use `--lexical-only` or omit the flag for lexical search.',
-                details={'flag': '--semantic-only', 'phase': 4},
-            )
         query = _build_query(
             SearchQuery,
             {
-                'q': q,
-                'tag': tag,
-                'type': entry_type,
-                'author': author,
-                'date_from': date_from,
-                'date_to': date_to,
-                'lexical_only': lexical_only,
-                'semantic_only': False,
-                'limit': limit,
+                "q": q,
+                "tag": tag,
+                "type": search_type,
+                "author": author,
+                "date_from": date_from,
+                "date_to": date_to,
+                "lexical_only": lexical_only,
+                "semantic_only": semantic_only,
+                "limit": limit,
             },
         )
-        hits = search(root, query)
-        return {
-            'hits': hits,
-            'count': len(hits),
-            'query': q,
-            'mode': 'lexical',
-        }
+        try:
+            hits = search_entries(root, query)
+        except FileNotFoundError as exc:
+            if semantic_only or (not lexical_only):
+                raise AppError.from_command_error(
+                    CommandError(
+                        code="ERR_VALIDATION_SEMANTIC_UNAVAILABLE",
+                        message=(
+                            f"Semantic search is unavailable: {exc}. "
+                            "Run `cwmem build` to rebuild the semantic index, "
+                            "or use --lexical-only for FTS-only search."
+                        ),
+                        retryable=False,
+                        suggested_action=(
+                            "Ensure models/model2vec/manifest.json and the vendored model "
+                            "are present, then run `cwmem build`."
+                        ),
+                        details={"missing_path": str(exc), "flag": "--semantic-only"},
+                    )
+                ) from exc
+            raise
+        return {"hits": hits, "count": len(hits), "query": q}
 
-    raise SystemExit(run_cli_command('memory.search', 'entry', handler))
+    raise SystemExit(run_cli_command("memory.search", "entry", handler))
 
 
 def _make_placeholder(command_id: str, human_name: str):
+    from cwmem.cli.setup import placeholder_command
+
     def command(ctx: typer.Context) -> None:
         _ = ctx.args
         raise SystemExit(
             run_cli_command(
                 command_id,
-                'repository',
+                "repository",
                 lambda: placeholder_command(command_id, human_name),
             )
         )
@@ -168,12 +176,14 @@ def _make_placeholder(command_id: str, human_name: str):
     return command
 
 
-def register(app: typer.Typer) -> None:
-    app.command('get')(get_command)
-    app.command('list')(list_command)
-    app.command('search')(search_command)
-    app.command('related', context_settings=PLACEHOLDER_CONTEXT)(
-        _make_placeholder('memory.related', 'related')
-    )
-    app.command('log')(log_command)
+PLACEHOLDER_CONTEXT = {"allow_extra_args": True, "ignore_unknown_options": True}
 
+
+def register(app: typer.Typer) -> None:
+    app.command("get")(get_command)
+    app.command("list")(list_command)
+    app.command("search")(search_command)
+    app.command("related", context_settings=PLACEHOLDER_CONTEXT)(
+        _make_placeholder("memory.related", "related")
+    )
+    app.command("log")(log_command)

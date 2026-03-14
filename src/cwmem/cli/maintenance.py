@@ -1,61 +1,56 @@
 from __future__ import annotations
 
+# ruff: noqa: B008
 from pathlib import Path
 from typing import Any
 
 import typer
 
 from cwmem.cli.setup import placeholder_command
-from cwmem.core.store import get_stats, rebuild_index, validate_index
+from cwmem.core.store import get_fts_stats, rebuild_fts_index, validate_fts
 from cwmem.output.envelope import run_cli_command
 
 PLACEHOLDER_CONTEXT = {"allow_extra_args": True, "ignore_unknown_options": True}
 
 
-def build_command(  # noqa: B008
-    cwd: Path | None = typer.Option(None, '--cwd'),
+def build_command(
+    cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
 
     def handler() -> dict[str, Any]:
-        entry_count, event_count = rebuild_index(root)
-        stats = get_stats(root)
+        entry_count, event_count, embedding_count = rebuild_fts_index(root)
         return {
-            'rebuilt': True,
-            'entries_indexed': entry_count,
-            'events_indexed': event_count,
-            'stats': stats,
+            "entries_indexed": entry_count,
+            "events_indexed": event_count,
+            "embeddings_written": embedding_count,
         }
 
-    raise SystemExit(run_cli_command('system.build', 'repository', handler))
+    raise SystemExit(run_cli_command("system.build", "repository", handler))
 
 
-def stats_command(  # noqa: B008
-    cwd: Path | None = typer.Option(None, '--cwd'),
+def stats_command(
+    cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
 
     def handler() -> dict[str, Any]:
-        stats = get_stats(root)
-        return {'stats': stats}
+        result = get_fts_stats(root)
+        return result.model_dump()
 
-    raise SystemExit(run_cli_command('system.stats', 'repository', handler))
+    raise SystemExit(run_cli_command("system.stats", "repository", handler))
 
 
-def validate_command(  # noqa: B008
-    cwd: Path | None = typer.Option(None, '--cwd'),
+def validate_command(
+    cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
 
     def handler() -> dict[str, Any]:
-        result = validate_index(root)
-        return {
-            'ok': result.ok,
-            'issues': result.issues,
-            'issue_count': len(result.issues),
-        }
+        result = validate_fts(root)
+        return result.model_dump()
 
-    raise SystemExit(run_cli_command('system.validate', 'repository', handler))
+    raise SystemExit(run_cli_command("system.validate", "repository", handler))
 
 
 def _make_placeholder(command_id: str, human_name: str):
@@ -85,4 +80,3 @@ def register(app: typer.Typer) -> None:
     app.command("verify", context_settings=PLACEHOLDER_CONTEXT)(
         _make_placeholder("system.verify", "verify")
     )
-

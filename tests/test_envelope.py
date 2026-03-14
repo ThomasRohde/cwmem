@@ -25,3 +25,14 @@ def test_bootstrap_commands_emit_required_envelope_keys(
     assert payload["ok"] is True
     assert payload["command"] == expected_command
 
+
+def test_unknown_command_returns_validation_envelope(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "does-not-exist")
+    payload = parse_envelope(completed.stdout, completed.stderr, 0)
+
+    assert completed.returncode == 10
+    assert_required_envelope_keys(payload)
+    assert payload["ok"] is False
+    assert payload["command"] == "system.cli"
+    assert payload["errors"][0]["code"] == "ERR_VALIDATION_INPUT"
+

@@ -19,8 +19,11 @@ def test_init_is_idempotent_and_creates_expected_paths(run_cli, tmp_path: Path) 
     assert second["ok"] is True
 
     assert (tmp_path / ".cwmem").is_dir()
+    assert (tmp_path / ".cwmem" / "memory.sqlite").is_file()
     assert (tmp_path / "memory").is_dir()
     assert (tmp_path / "models" / "model2vec").is_dir()
+    assert (tmp_path / "models" / "model2vec" / "manifest.json").is_file()
+    assert (tmp_path / "models" / "model2vec" / "model" / "model.safetensors").is_file()
 
 
 def test_status_distinguishes_uninitialized_and_initialized_repos(run_cli, tmp_path: Path) -> None:
@@ -41,3 +44,5 @@ def test_status_distinguishes_uninitialized_and_initialized_repos(run_cli, tmp_p
 
     assert before["result"]["initialized"] is False
     assert after["result"]["initialized"] is True
+    assert before["result"]["database_exists"] is False
+    assert after["result"]["database_exists"] is True

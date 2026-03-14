@@ -6,6 +6,7 @@ from typing import Any
 import typer
 
 from cwmem import __version__
+from cwmem.core import embeddings as _emb
 from cwmem.core.models import GuideDocument, GuideFlag, GuideWorkflow, InitResult, StatusResult
 from cwmem.core.paths import EMPTY_SURFACES, REQUIRED_DIRECTORIES, TAXONOMY_SEEDS, relpath
 from cwmem.core.store import ensure_schema
@@ -92,7 +93,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "search",
             "canonical_id": "memory.search",
-            "implemented": False,
+            "implemented": True,
             "mutating": False,
             "summary": "Run lexical and semantic retrieval over memory content.",
             "aliases": [],
@@ -396,6 +397,11 @@ def build_guide_document() -> GuideDocument:
                 "retryable": False,
             },
             {
+                "code": "ERR_CONFLICT_STALE_FINGERPRINT",
+                "message": "Requested update used a stale fingerprint.",
+                "retryable": False,
+            },
+            {
                 "code": "ERR_LOCK_HELD",
                 "message": "A write lock is already held by another process.",
                 "retryable": True,
@@ -474,7 +480,7 @@ def build_guide_document() -> GuideDocument:
             "event_export_format": "jsonl",
             "graph_export_formats": ["nodes.jsonl", "edges.jsonl"],
             "sync_mode": "explicit",
-            "vendored_model_default": "planned",
+            "vendored_model_default": "enabled via repo-local model bundle",
             "graph_edges_v1": "explicit plus inferred edges",
             "lifecycle_events": "automatic",
         },
@@ -529,6 +535,8 @@ def _build_init_result(root: Path) -> InitResult:
     created: list[str] = []
     existing: list[str] = []
     db_preexisting = (root / ".cwmem" / "memory.sqlite").exists()
+    model_manifest = root / "models" / "model2vec" / "manifest.json"
+    model_manifest_preexisting = model_manifest.is_file()
 
     for relative in REQUIRED_DIRECTORIES:
         path = root / relative
@@ -546,6 +554,10 @@ def _build_init_result(root: Path) -> InitResult:
         path.parent.mkdir(parents=True, exist_ok=True)
         was_created = _write_seed_file(path, payload)
         (created if was_created else existing).append(relpath(path, root))
+
+    _emb.ensure_repo_model(root)
+    if model_manifest.is_file():
+        (existing if model_manifest_preexisting else created).append(relpath(model_manifest, root))
 
     db_path = ensure_schema(root)
     db_relative = relpath(db_path, root)
@@ -584,6 +596,14 @@ def _build_status_result(root: Path) -> StatusResult:
     database_file = root / ".cwmem" / "memory.sqlite"
     if database_file.is_file():
         existing_paths.append(relpath(database_file, root))
+    else:
+        missing_paths.append(relpath(database_file, root))
+
+    model_manifest = root / "models" / "model2vec" / "manifest.json"
+    if model_manifest.is_file():
+        existing_paths.append(relpath(model_manifest, root))
+    else:
+        missing_paths.append(relpath(model_manifest, root))
 
     empty_surfaces = [
         relpath(root / relative, root)
@@ -601,6 +621,7 @@ def _build_status_result(root: Path) -> StatusResult:
             "memory_dir": relpath(root / "memory", root),
             "taxonomy_dir": relpath(root / "memory" / "taxonomy", root),
             "model_dir": relpath(root / "models" / "model2vec", root),
+            "model_manifest_path": relpath(model_manifest, root),
             "database_path": relpath(database_file, root),
             "lock_path": relpath(root / ".cwmem" / "memory.sqlite.lock", root),
         },
