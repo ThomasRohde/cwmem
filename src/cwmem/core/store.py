@@ -3,19 +3,20 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import orjson
 
 from cwmem.core import embeddings as _emb
 from cwmem.core import fts as _fts
 from cwmem.core.events import append_event, build_entry_lifecycle_event
-from cwmem.core.fingerprints import compute_entry_fingerprint
+from cwmem.core.fingerprints import compute_entity_fingerprint, compute_entry_fingerprint
 from cwmem.core.ids import generate_internal_id, next_public_id
 from cwmem.core.models import (
     CommandError,
     CreateEntryInput,
     CreateEventInput,
+    EntityRecord,
     EntryRecord,
     EventRecord,
     EventResource,
@@ -31,7 +32,7 @@ from cwmem.core.models import (
 )
 from cwmem.output.envelope import AppError
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 
 def database_path(root: Path) -> Path:
@@ -106,15 +107,65 @@ def ensure_schema(root: Path) -> Path:
                 FOREIGN KEY(event_internal_id) REFERENCES events(internal_id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS entities (
+                internal_id TEXT PRIMARY KEY,
+                public_id TEXT NOT NULL UNIQUE,
+                entity_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                status TEXT NOT NULL,
+                aliases_json TEXT NOT NULL,
+                provenance_json TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                fingerprint TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS entity_tags (
+                entity_internal_id TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(entity_internal_id, tag),
+                FOREIGN KEY(entity_internal_id) REFERENCES entities(internal_id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS edges (
+                internal_id TEXT PRIMARY KEY,
+                public_id TEXT NOT NULL UNIQUE,
+                source_id TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                target_type TEXT NOT NULL,
+                relation_type TEXT NOT NULL,
+                provenance TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                is_inferred INTEGER NOT NULL DEFAULT 0,
+                created_by TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                fingerprint TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_entries_public_id ON entries(public_id);
             CREATE INDEX IF NOT EXISTS idx_events_public_id ON events(public_id);
+            CREATE INDEX IF NOT EXISTS idx_entities_public_id ON entities(public_id);
             CREATE INDEX IF NOT EXISTS idx_events_occurred_at ON events(occurred_at, public_id);
             CREATE INDEX IF NOT EXISTS idx_event_resources_resource_public_id
                 ON event_resources(resource_public_id, role);
             CREATE INDEX IF NOT EXISTS idx_entry_tags_tag ON entry_tags(tag);
             CREATE INDEX IF NOT EXISTS idx_event_tags_tag ON event_tags(tag);
+            CREATE INDEX IF NOT EXISTS idx_entity_tags_tag ON entity_tags(tag);
+            CREATE INDEX IF NOT EXISTS idx_edges_source_id
+                ON edges(source_id, relation_type, target_id);
+            CREATE INDEX IF NOT EXISTS idx_edges_target_id
+                ON edges(target_id, relation_type, source_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique_signature
+                ON edges(source_id, target_id, relation_type, is_inferred);
             """
         )
+        _migrate_legacy_graph_schema(conn)
         _fts.ensure_fts_schema(conn)
         _emb.ensure_embeddings_schema(conn)
         conn.executemany(
@@ -127,6 +178,8 @@ def ensure_schema(root: Path) -> Path:
                 ("schema_version", SCHEMA_VERSION),
                 ("next_mem_id", "1"),
                 ("next_evt_id", "1"),
+                ("next_ent_id", "1"),
+                ("next_edg_id", "1"),
             ],
         )
         conn.commit()
@@ -141,6 +194,7 @@ def create_entry(root: Path, entry_input: CreateEntryInput) -> EntryRecord:
         with conn:
             now = _utc_now()
             tags = _normalize_tags(entry_input.tags)
+            _validate_entity_refs_exist(conn, entry_input.entity_refs)
             record = EntryRecord(
                 internal_id=generate_internal_id(),
                 public_id=next_public_id(conn, "mem"),
@@ -210,6 +264,8 @@ def update_entry(root: Path, update_input: UpdateEntryInput) -> tuple[EntryRecor
                 candidate.entity_refs = sorted(set(update_input.entity_refs))
             if update_input.metadata is not None:
                 candidate.metadata = dict(update_input.metadata)
+
+            _validate_entity_refs_exist(conn, candidate.entity_refs)
 
             changed_fields = _changed_fields(existing, candidate)
             if not changed_fields:
@@ -362,6 +418,7 @@ def add_event(root: Path, event_input: CreateEventInput) -> EventRecord:
                 conn,
                 [resource.resource_id for resource in event_input.resources],
             )
+            _validate_entity_refs_exist(conn, event_input.entity_refs)
             record = append_event(conn, event_input)
             _fts.upsert_event_fts(conn, record)
             return record
@@ -409,30 +466,39 @@ def list_events(root: Path, query: LogQuery) -> list[EventRecord]:
 
 
 def search_entries(root: Path, query: SearchQuery) -> list[Any]:
+    from cwmem.core import graph as _graph
     from cwmem.core import hybrid_search as _hybrid
 
     conn = _connect(root)
     try:
         if query.semantic_only:
-            return _hybrid.search_semantic(root, conn, query)
-        if query.lexical_only:
-            return _fts.search_lexical(conn, query)
-        # Default: hybrid
-        return _hybrid.search_hybrid(root, conn, query)
+            hits = _hybrid.search_semantic(root, conn, query)
+        elif query.lexical_only:
+            hits = _fts.search_lexical(conn, query)
+        else:
+            hits = _hybrid.search_hybrid(root, conn, query)
+        if query.expand_graph:
+            return _graph.expand_search_hits(conn, hits, query.limit)
+        return hits
     finally:
         conn.close()
 
 
 def search(root: Path, query: SearchQuery) -> list[SearchHit]:
+    from cwmem.core import graph as _graph
     from cwmem.core import hybrid_search as _hybrid
 
     conn = _connect(root)
     try:
         if query.semantic_only:
-            return _hybrid.search_semantic(root, conn, query)
-        if query.lexical_only:
-            return _fts.search_lexical(conn, query)
-        return _hybrid.search_hybrid(root, conn, query)
+            hits = _hybrid.search_semantic(root, conn, query)
+        elif query.lexical_only:
+            hits = _fts.search_lexical(conn, query)
+        else:
+            hits = _hybrid.search_hybrid(root, conn, query)
+        if query.expand_graph:
+            return _graph.expand_search_hits(conn, hits, query.limit)
+        return hits
     finally:
         conn.close()
 
@@ -459,9 +525,12 @@ def validate_fts(root: Path) -> ValidationResult:
 
 def rebuild_fts_index(root: Path) -> tuple[int, int, int]:
     """Rebuild FTS indexes and embeddings. Returns (entry_count, event_count, embedding_count)."""
+    from cwmem.core import graph as _graph
+
     conn = _connect(root)
     try:
         with conn:
+            _graph.rebuild_inferred_edges(conn)
             entry_count, event_count = _fts.rebuild_fts(conn)
             embedding_count = _emb.rebuild_embeddings(root, conn)
             now = _utc_now()
@@ -499,9 +568,12 @@ def get_stats(root: Path) -> StatsResult:
 
 def rebuild_index(root: Path) -> tuple[int, int, int]:
     """Rebuild FTS indexes and embeddings. Returns (entry_count, event_count, embedding_count)."""
+    from cwmem.core import graph as _graph
+
     conn = _connect(root)
     try:
         with conn:
+            _graph.rebuild_inferred_edges(conn)
             counts = _fts.rebuild_fts(conn)
             embedding_count = _emb.rebuild_embeddings(root, conn)
             now = _utc_now()
@@ -599,10 +671,12 @@ def _connect(root: Path) -> sqlite3.Connection:
             details={"database_path": path.as_posix()},
             suggested_action="Run `cwmem init` in the repository root, then retry the command.",
         )
+    ensure_schema(root)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     _fts.ensure_fts_schema(conn)
+    _emb.ensure_embeddings_schema(conn)
     return conn
 
 
@@ -736,16 +810,44 @@ def _event_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> EventRecord:
     )
 
 
+def _entity_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> EntityRecord:
+    tags = [
+        tag_row[0]
+        for tag_row in conn.execute(
+            "SELECT tag FROM entity_tags WHERE entity_internal_id = ? ORDER BY tag ASC",
+            (row["internal_id"],),
+        ).fetchall()
+    ]
+    return EntityRecord(
+        internal_id=row["internal_id"],
+        public_id=row["public_id"],
+        entity_type=row["entity_type"],
+        name=row["name"],
+        description=row["description"],
+        status=row["status"],
+        aliases=_json_load(row["aliases_json"]),
+        tags=tags,
+        provenance=_json_load(row["provenance_json"]),
+        metadata=_json_load(row["metadata_json"]),
+        fingerprint=row["fingerprint"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
 def _resource_kind(resource_id: str) -> str:
     if resource_id.startswith("mem-"):
         return "entry"
     if resource_id.startswith("evt-"):
         return "event"
+    if resource_id.startswith("ent-"):
+        return "entity"
     _raise_validation(
         "Unsupported resource identifier.",
         details={"resource_id": resource_id},
         suggested_action=(
-            "Use a public entry ID like `mem-000001` or an event ID like `evt-000001`."
+            "Use a public entry ID like `mem-000001`, an event ID like `evt-000001`, "
+            "or an entity ID like `ent-000001`."
         ),
     )
     raise AssertionError("unreachable")
@@ -767,7 +869,7 @@ def _validate_resources_exist(conn: sqlite3.Connection, resource_ids: list[str])
                         "Create the entry first or remove the invalid resource reference."
                     ),
                 )
-        else:
+        elif resource_kind == "event":
             row = conn.execute(
                 "SELECT 1 FROM events WHERE public_id = ?",
                 (resource_id,),
@@ -780,6 +882,127 @@ def _validate_resources_exist(conn: sqlite3.Connection, resource_ids: list[str])
                         "Create the event first or remove the invalid resource reference."
                     ),
                 )
+        else:
+            row = conn.execute(
+                "SELECT 1 FROM entities WHERE public_id = ?",
+                (resource_id,),
+            ).fetchone()
+            if row is None:
+                _raise_validation(
+                    "Referenced entity does not exist.",
+                    details={"resource_id": resource_id},
+                    suggested_action=(
+                        "Create the entity first or remove the invalid entity reference."
+                    ),
+                )
+
+
+def _validate_entity_refs_exist(conn: sqlite3.Connection, entity_refs: list[str]) -> None:
+    if not entity_refs:
+        return
+    normalized_refs = sorted(set(entity_refs))
+    for entity_ref in normalized_refs:
+        if _resource_kind(entity_ref) != "entity":
+            _raise_validation(
+                "Entity references must point to entity IDs.",
+                details={"resource_id": entity_ref},
+                suggested_action=(
+                    "Use `ent-...` identifiers in `--entity-ref`, or create the entity first."
+                ),
+            )
+    _validate_resources_exist(conn, normalized_refs)
+
+
+def _migrate_legacy_graph_schema(conn: sqlite3.Connection) -> None:
+    if not _table_exists(conn, "entities"):
+        return
+
+    columns = _table_columns(conn, "entities")
+    migrations: list[tuple[str, str]] = [
+        (
+            "entity_type",
+            "ALTER TABLE entities ADD COLUMN entity_type TEXT NOT NULL DEFAULT 'entity'",
+        ),
+        (
+            "description",
+            "ALTER TABLE entities ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "status",
+            "ALTER TABLE entities ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+        ),
+        (
+            "aliases_json",
+            "ALTER TABLE entities ADD COLUMN aliases_json TEXT NOT NULL DEFAULT '[]'",
+        ),
+        (
+            "provenance_json",
+            "ALTER TABLE entities ADD COLUMN provenance_json TEXT NOT NULL DEFAULT '{}'",
+        ),
+        (
+            "metadata_json",
+            "ALTER TABLE entities ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'",
+        ),
+        (
+            "fingerprint",
+            "ALTER TABLE entities ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ''",
+        ),
+    ]
+    for column_name, ddl in migrations:
+        if column_name not in columns:
+            conn.execute(ddl)
+
+    columns = _table_columns(conn, "entities")
+    if "kind" in columns:
+        conn.execute(
+            """
+            UPDATE entities
+            SET entity_type = kind
+            WHERE entity_type = 'entity'
+              AND COALESCE(kind, '') != ''
+            """
+        )
+    conn.execute(
+        """
+        UPDATE entities
+        SET entity_type = 'entity'
+        WHERE COALESCE(entity_type, '') = ''
+        """
+    )
+    conn.execute(
+        """
+        UPDATE entities
+        SET aliases_json = '[]'
+        WHERE COALESCE(aliases_json, '') = ''
+        """
+    )
+    conn.execute(
+        """
+        UPDATE entities
+        SET provenance_json = '{}'
+        WHERE COALESCE(provenance_json, '') = ''
+        """
+    )
+    conn.execute(
+        """
+        UPDATE entities
+        SET metadata_json = '{}'
+        WHERE COALESCE(metadata_json, '') = ''
+        """
+    )
+    for row in conn.execute(
+        """
+        SELECT *
+        FROM entities
+        WHERE COALESCE(fingerprint, '') = ''
+        ORDER BY public_id ASC
+        """
+    ).fetchall():
+        record = _entity_from_row(conn, row)
+        conn.execute(
+            "UPDATE entities SET fingerprint = ? WHERE internal_id = ?",
+            (compute_entity_fingerprint(record), record.internal_id),
+        )
 
 
 def _json_dump(value: Any) -> str:
@@ -815,9 +1038,27 @@ def _changed_fields(existing: EntryRecord, candidate: EntryRecord) -> list[str]:
     )
 
 
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type IN ('table', 'view')
+          AND name = ?
+        """,
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()  # noqa: S608
+    return {str(row[1]) for row in rows}
+
+
 def _raise_validation(
     message: str, *, details: dict[str, Any] | None = None, suggested_action: str
-) -> None:
+) -> NoReturn:
     raise AppError.from_command_error(
         CommandError(
             code="ERR_VALIDATION_INPUT",
@@ -831,7 +1072,7 @@ def _raise_validation(
 
 def _raise_conflict(
     message: str, *, details: dict[str, Any] | None = None, suggested_action: str
-) -> None:
+) -> NoReturn:
     raise AppError.from_command_error(
         CommandError(
             code="ERR_CONFLICT_STALE_FINGERPRINT",

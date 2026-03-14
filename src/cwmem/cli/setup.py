@@ -103,7 +103,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "related",
             "canonical_id": "memory.related",
-            "implemented": False,
+            "implemented": True,
             "mutating": False,
             "summary": "Find related memory items using graph and retrieval signals.",
             "aliases": [],
@@ -123,7 +123,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "graph",
             "canonical_id": "memory.graph.show",
-            "implemented": False,
+            "implemented": True,
             "mutating": False,
             "summary": "Inspect graph nodes and edges.",
             "aliases": [],
@@ -133,7 +133,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "stats",
             "canonical_id": "system.stats",
-            "implemented": False,
+            "implemented": True,
             "mutating": False,
             "summary": "Report repository memory statistics.",
             "aliases": [],
@@ -173,7 +173,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "link",
             "canonical_id": "memory.link",
-            "implemented": False,
+            "implemented": True,
             "mutating": True,
             "summary": "Create an explicit graph relationship.",
             "aliases": [],
@@ -213,7 +213,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "entity-add",
             "canonical_id": "memory.entity.add",
-            "implemented": False,
+            "implemented": True,
             "mutating": True,
             "summary": "Create a graph entity record.",
             "aliases": [],
@@ -223,7 +223,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "sync export",
             "canonical_id": "memory.sync.export",
-            "implemented": False,
+            "implemented": True,
             "mutating": True,
             "summary": "Export deterministic markdown and JSONL collaboration artifacts.",
             "aliases": [],
@@ -233,7 +233,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "sync import",
             "canonical_id": "memory.sync.import",
-            "implemented": False,
+            "implemented": True,
             "mutating": True,
             "summary": "Rebuild runtime state from checked-in artifacts.",
             "aliases": [],

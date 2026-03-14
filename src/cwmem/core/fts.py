@@ -4,7 +4,10 @@ import re
 import sqlite3
 from typing import Any
 
+import orjson
+
 from cwmem.core.models import (
+    EntityRecord,
     EntryRecord,
     EventRecord,
     SearchHit,
@@ -22,6 +25,8 @@ _REQUIRED_TABLES = [
     "events",
     "event_tags",
     "event_resources",
+    "entity_tags",
+    "edges",
     "entries_fts",
     "events_fts",
     "entities",
@@ -30,16 +35,20 @@ _REQUIRED_TABLES = [
 
 
 def ensure_fts_schema(conn: sqlite3.Connection) -> None:
-    """Lazily create FTS virtual tables and the entities stub if absent."""
+    """Lazily create FTS virtual tables and the entities schema if absent."""
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS entities (
             internal_id TEXT PRIMARY KEY,
             public_id TEXT NOT NULL UNIQUE,
+            entity_type TEXT NOT NULL,
             name TEXT NOT NULL,
-            kind TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'active',
             aliases_json TEXT NOT NULL DEFAULT '[]',
+            provenance_json TEXT NOT NULL DEFAULT '{}',
             metadata_json TEXT NOT NULL DEFAULT '{}',
+            fingerprint TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
@@ -104,6 +113,16 @@ def rebuild_fts(conn: sqlite3.Connection) -> tuple[int, int]:
             (row[0], row[1], tags_str),
         )
 
+    entity_rows = conn.execute(
+        "SELECT public_id, name, aliases_json FROM entities ORDER BY public_id ASC"
+    ).fetchall()
+    for row in entity_rows:
+        aliases = _load_aliases(row[2])
+        conn.execute(
+            "INSERT INTO entities_fts(public_id, name, aliases) VALUES (?, ?, ?)",
+            (row[0], row[1], " ".join(aliases)),
+        )
+
     return len(entry_rows), len(event_rows)
 
 
@@ -124,6 +143,15 @@ def upsert_event_fts(conn: sqlite3.Connection, record: EventRecord) -> None:
     conn.execute(
         "INSERT INTO events_fts(public_id, body, tags) VALUES (?, ?, ?)",
         (record.public_id, record.body, tags_str),
+    )
+
+
+def upsert_entity_fts(conn: sqlite3.Connection, record: EntityRecord) -> None:
+    """Upsert an entity's searchable text into entities_fts."""
+    conn.execute("DELETE FROM entities_fts WHERE public_id = ?", (record.public_id,))
+    conn.execute(
+        "INSERT INTO entities_fts(public_id, name, aliases) VALUES (?, ?, ?)",
+        (record.public_id, record.name, " ".join(record.aliases)),
     )
 
 
@@ -237,6 +265,58 @@ def search_lexical(conn: sqlite3.Connection, query: SearchQuery) -> list[SearchH
                 )
             )
 
+    if not query.author and len(hits) < query.limit:
+        entity_sql: list[str] = [
+            "SELECT f.public_id, bm25(entities_fts) AS score",
+            "FROM entities_fts f",
+            "JOIN entities e ON e.public_id = f.public_id",
+            "WHERE entities_fts MATCH ?",
+        ]
+        entity_params: list[Any] = [match_query]
+
+        if query.tag:
+            entity_sql.append(
+                "AND EXISTS ("
+                "SELECT 1 FROM entity_tags t"
+                " JOIN entities e2 ON t.entity_internal_id = e2.internal_id"
+                " WHERE e2.public_id = f.public_id AND t.tag = ?"
+                ")"
+            )
+            entity_params.append(query.tag)
+        if query.type:
+            entity_sql.append("AND e.entity_type = ?")
+            entity_params.append(query.type)
+        if query.date_from:
+            entity_sql.append("AND e.created_at >= ?")
+            entity_params.append(query.date_from)
+        if query.date_to:
+            entity_sql.append("AND e.created_at <= ?")
+            entity_params.append(query.date_to)
+
+        remaining = query.limit - len(hits)
+        entity_sql.append("ORDER BY score LIMIT ?")
+        entity_params.append(remaining)
+
+        try:
+            entity_rows = conn.execute(" ".join(entity_sql), entity_params).fetchall()
+        except sqlite3.OperationalError:
+            entity_rows = []
+
+        for row in entity_rows:
+            rank += 1
+            hits.append(
+                SearchHit(
+                    resource_id=row[0],
+                    resource_type="entity",
+                    score=abs(float(row[1])),
+                    match_modes=["lexical"],
+                    explanation=SearchHitExplanation(
+                        lexical_rank=rank,
+                        matched_fields=["name", "aliases", "tags"],
+                    ),
+                )
+            )
+
     return hits
 
 
@@ -248,6 +328,7 @@ def get_stats(conn: sqlite3.Connection) -> StatsResult:
     entries_fts = _count_if_exists(conn, "entries_fts")
     events_fts = _count_if_exists(conn, "events_fts")
     entities_fts = _count_if_exists(conn, "entities_fts")
+    edges = _count_if_exists(conn, "edges")
     embeddings = _count_if_exists(conn, "embeddings")
 
     row = conn.execute(
@@ -267,6 +348,7 @@ def get_stats(conn: sqlite3.Connection) -> StatsResult:
         events_fts=events_fts,
         entities=entities,
         entities_fts=entities_fts,
+        edges=edges,
         embeddings=embeddings,
         last_build_at=last_build_at,
         embedding_model=embedding_model,
@@ -324,6 +406,23 @@ def validate_fts_consistency(conn: sqlite3.Connection) -> ValidationResult:
             )
         )
 
+    entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+    fts_entity_count = conn.execute("SELECT COUNT(*) FROM entities_fts").fetchone()[0]
+    if entity_count != fts_entity_count:
+        issues.append(
+            ValidationIssue(
+                code="ERR_FTS_DRIFT_ENTITIES",
+                message=(
+                    f"entities_fts has {fts_entity_count} rows but entities has {entity_count}. "
+                    "Run `cwmem build` to resync."
+                ),
+                details={
+                    "entities_count": entity_count,
+                    "entities_fts_count": fts_entity_count,
+                },
+            )
+        )
+
     return ValidationResult(ok=not issues, issues=issues)
 
 
@@ -359,6 +458,13 @@ def _get_event_tags_str(conn: sqlite3.Connection, internal_id: str) -> str:
         (internal_id,),
     ).fetchall()
     return " ".join(row[0] for row in rows)
+
+
+def _load_aliases(raw: str) -> list[str]:
+    loaded = orjson.loads(raw)
+    if not isinstance(loaded, list):
+        return []
+    return [str(item) for item in loaded if str(item).strip()]
 
 
 def _normalize_match_query(raw: str) -> str:

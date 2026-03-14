@@ -8,7 +8,14 @@ import typer
 from pydantic import BaseModel, ValidationError
 
 from cwmem.core.export import render_entry_jsonl, render_entry_markdown, render_event_jsonl
-from cwmem.core.models import CommandError, ListEntriesQuery, LogQuery, SearchQuery
+from cwmem.core.graph import related as related_resources
+from cwmem.core.models import (
+    CommandError,
+    ListEntriesQuery,
+    LogQuery,
+    RelatedQuery,
+    SearchQuery,
+)
 from cwmem.core.store import get_entry, list_entries, list_events, search_entries
 from cwmem.output.envelope import AppError, run_cli_command
 
@@ -114,6 +121,7 @@ def search_command(  # noqa: B008
     date_to: str | None = typer.Option(None, "--to"),
     lexical_only: bool = typer.Option(False, "--lexical-only"),
     semantic_only: bool = typer.Option(False, "--semantic-only"),
+    expand_graph: bool = typer.Option(False, "--expand-graph"),
     limit: int = typer.Option(20, "--limit"),
     cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
@@ -131,6 +139,7 @@ def search_command(  # noqa: B008
                 "date_to": date_to,
                 "lexical_only": lexical_only,
                 "semantic_only": semantic_only,
+                "expand_graph": expand_graph,
                 "limit": limit,
             },
         )
@@ -157,33 +166,39 @@ def search_command(  # noqa: B008
             raise
         return {"hits": hits, "count": len(hits), "query": q}
 
-    raise SystemExit(run_cli_command("memory.search", "entry", handler))
+    raise SystemExit(run_cli_command("memory.search", "resource", handler))
 
 
-def _make_placeholder(command_id: str, human_name: str):
-    from cwmem.cli.setup import placeholder_command
+def related_command(  # noqa: B008
+    resource_id: str = typer.Argument(...),
+    relation_type: str | None = typer.Option(None, "--relation", "--relation-type"),
+    depth: int = typer.Option(1, "--depth"),
+    limit: int = typer.Option(50, "--limit"),
+    include_provenance: bool = typer.Option(False, "--include-provenance"),
+    cwd: Path | None = typer.Option(None, "--cwd"),
+) -> None:
+    root = (cwd or Path.cwd()).resolve()
 
-    def command(ctx: typer.Context) -> None:
-        _ = ctx.args
-        raise SystemExit(
-            run_cli_command(
-                command_id,
-                "repository",
-                lambda: placeholder_command(command_id, human_name),
-            )
+    def handler() -> dict[str, Any]:
+        query = _build_query(
+            RelatedQuery,
+            {
+                "resource_id": resource_id,
+                "relation_type": relation_type,
+                "depth": depth,
+                "limit": limit,
+                "include_provenance": include_provenance,
+            },
         )
+        hits = related_resources(root, query)
+        return {"resource_id": resource_id, "hits": hits, "count": len(hits)}
 
-    return command
-
-
-PLACEHOLDER_CONTEXT = {"allow_extra_args": True, "ignore_unknown_options": True}
+    raise SystemExit(run_cli_command("memory.related", "resource", handler))
 
 
 def register(app: typer.Typer) -> None:
     app.command("get")(get_command)
     app.command("list")(list_command)
     app.command("search")(search_command)
-    app.command("related", context_settings=PLACEHOLDER_CONTEXT)(
-        _make_placeholder("memory.related", "related")
-    )
+    app.command("related")(related_command)
     app.command("log")(log_command)

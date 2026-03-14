@@ -5,7 +5,7 @@ from typing import Any
 
 import orjson
 
-from cwmem.core.models import EntryRecord, EventRecord
+from cwmem.core.models import EdgeRecord, EntityRecord, EntryRecord, EventRecord
 
 
 def _normalize(value: Any) -> Any:
@@ -59,5 +59,39 @@ def compute_event_fingerprint(event: EventRecord | dict[str, Any]) -> str:
             "entity_refs": sorted(set(data.get("entity_refs", []))),
             "metadata": data.get("metadata", {}),
             "occurred_at": data["occurred_at"],
+        }
+    )
+
+
+def compute_entity_fingerprint(entity: EntityRecord | dict[str, Any]) -> str:
+    data = entity.model_dump(mode="json") if isinstance(entity, EntityRecord) else dict(entity)
+    return _digest(
+        {
+            "entity_type": data["entity_type"],
+            "name": data["name"],
+            "description": data["description"],
+            "status": data["status"],
+            "aliases": sorted(set(data.get("aliases", []))),
+            "tags": sorted(set(data.get("tags", []))),
+            "provenance": data.get("provenance", {}),
+            "metadata": data.get("metadata", {}),
+        }
+    )
+
+
+def compute_edge_fingerprint(edge: EdgeRecord | dict[str, Any]) -> str:
+    data = edge.model_dump(mode="json") if isinstance(edge, EdgeRecord) else dict(edge)
+    return _digest(
+        {
+            "source_id": data["source_id"],
+            "source_type": data["source_type"],
+            "target_id": data["target_id"],
+            "target_type": data["target_type"],
+            "relation_type": data["relation_type"],
+            "provenance": data["provenance"],
+            "confidence": round(float(data["confidence"]), 6),
+            "is_inferred": bool(data.get("is_inferred", False)),
+            "created_by": data["created_by"],
+            "metadata": data.get("metadata", {}),
         }
     )

@@ -11,8 +11,11 @@ from pydantic import BaseModel, ValidationError
 
 from cwmem.cli.setup import placeholder_command
 from cwmem.core.export import render_entry_jsonl, render_entry_markdown, render_event_jsonl
+from cwmem.core.graph import add_edge, add_entity
 from cwmem.core.models import (
     CommandError,
+    CreateEdgeInput,
+    CreateEntityInput,
     CreateEntryInput,
     CreateEventInput,
     EntryRecord,
@@ -406,6 +409,85 @@ def event_add_command(  # noqa: B008
     raise SystemExit(run_cli_command('memory.event.add', 'event', handler))
 
 
+def link_command(  # noqa: B008
+    source_id: str = typer.Argument(...),
+    target_id: str = typer.Argument(...),
+    relation_type: str | None = typer.Option(None, '--relation', '--relation-type'),
+    provenance: str = typer.Option('explicit_user', '--provenance'),
+    confidence: float = typer.Option(1.0, '--confidence'),
+    metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
+    cwd: Path | None = typer.Option(None, '--cwd'),
+) -> None:
+    root = (cwd or Path.cwd()).resolve()
+
+    def handler() -> dict[str, Any]:
+        payload = _merge_payload(
+            {},
+            source_id=source_id,
+            target_id=target_id,
+            relation_type=relation_type,
+            provenance=provenance,
+            confidence=confidence,
+            metadata=_parse_json_option(metadata_json, field_name='metadata_json'),
+        )
+        edge_input = _build_model(CreateEdgeInput, payload)
+        edge = add_edge(root, edge_input)
+        return {'edge': edge}
+
+    raise SystemExit(run_cli_command('memory.link', 'edge', handler))
+
+
+def entity_add_command(  # noqa: B008
+    entity_type: str | None = typer.Option(None, '--entity-type', '--type'),
+    name: str | None = typer.Option(None, '--name'),
+    status: str | None = typer.Option(None, '--status'),
+    aliases: list[str] | None = typer.Option(None, '--alias'),
+    tags: list[str] | None = typer.Option(None, '--tag', '--tags'),
+    provenance_json: str | None = typer.Option(None, '--provenance', '--provenance-json'),
+    metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
+    description_option: str | None = typer.Option(None, '--description'),
+    description: str | None = typer.Argument(None),
+    cwd: Path | None = typer.Option(None, '--cwd'),
+) -> None:
+    root = (cwd or Path.cwd()).resolve()
+
+    def handler() -> dict[str, Any]:
+        stdin_payload = _parse_stdin_json(
+            enabled=_should_read_stdin(
+                entity_type,
+                name,
+                status,
+                aliases,
+                tags,
+                provenance_json,
+                metadata_json,
+                description_option,
+                description,
+            )
+        )
+        payload = _merge_payload(
+            stdin_payload,
+            entity_type=entity_type,
+            name=name,
+            description=_resolve_optional_text(
+                option_value=description_option,
+                argument_value=description,
+                root=root,
+                field_name='description',
+            ),
+            status=status,
+            aliases=aliases,
+            tags=tags,
+            provenance=_parse_json_option(provenance_json, field_name='provenance_json'),
+            metadata=_parse_json_option(metadata_json, field_name='metadata_json'),
+        )
+        entity_input = _build_model(CreateEntityInput, payload)
+        entity = add_entity(root, entity_input)
+        return {'entity': entity}
+
+    raise SystemExit(run_cli_command('memory.entity.add', 'entity', handler))
+
+
 def _make_placeholder(command_id: str, human_name: str):
     def command() -> None:
         raise SystemExit(
@@ -423,8 +505,8 @@ def register(app: typer.Typer) -> None:
     app.command('add')(add_command)
     app.command('update')(update_command)
     app.command('deprecate')(_make_placeholder('memory.deprecate', 'deprecate'))
-    app.command('link')(_make_placeholder('memory.link', 'link'))
+    app.command('link')(link_command)
     app.command('tag-add')(tag_add_command)
     app.command('tag-remove')(tag_remove_command)
     app.command('event-add')(event_add_command)
-    app.command('entity-add')(_make_placeholder('memory.entity.add', 'entity-add'))
+    app.command('entity-add')(entity_add_command)

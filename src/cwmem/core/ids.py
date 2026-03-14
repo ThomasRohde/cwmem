@@ -9,6 +9,8 @@ _CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 _PUBLIC_ID_CONFIG: dict[str, tuple[str, str]] = {
     "mem": ("next_mem_id", "mem"),
     "evt": ("next_evt_id", "evt"),
+    "ent": ("next_ent_id", "ent"),
+    "edg": ("next_edg_id", "edg"),
 }
 
 
