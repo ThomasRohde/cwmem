@@ -83,6 +83,11 @@ def validate_command(
                 _raise_plan_artifact_error(exc)
         else:
             result = _validator.validate_repository(root)
+        if not result.ok:
+            raise validation_error(
+                "Repository validation found issues.",
+                details=result.model_dump(mode="json"),
+            )
         return result.model_dump(mode="json")
 
     raise SystemExit(run_cli_command("system.validate", "repository", handler))

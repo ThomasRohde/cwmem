@@ -63,11 +63,8 @@ def test_validate_plan_reports_state_drift_after_repository_changes(
 
     completed, payload = run_any(run_cli, tmp_path, "validate", "--plan", str(plan_path))
     assert payload["command"] == "system.validate"
-    assert completed.returncode == 0, completed
-
-    result = payload["result"]
-    assert isinstance(result, dict), result
-    assert result.get("ok") is False
+    assert completed.returncode == 10, completed
+    assert payload["ok"] is False
 
     serialized = json.dumps(payload, sort_keys=True).lower()
     assert "plan" in serialized

@@ -395,16 +395,17 @@ def list_entries(root: Path, query: ListEntriesQuery) -> list[EntryRecord]:
         sql_parts = ["SELECT e.* FROM entries e"]
         params: list[Any] = []
         where_clauses: list[str] = []
-        if query.tag:
+        if query.tags:
+            placeholders = ", ".join("?" for _ in query.tags)
             where_clauses.append(
-                """
+                f"""
                 EXISTS (
                     SELECT 1 FROM entry_tags t
-                    WHERE t.entry_internal_id = e.internal_id AND t.tag = ?
+                    WHERE t.entry_internal_id = e.internal_id AND t.tag IN ({placeholders})
                 )
                 """
             )
-            params.append(query.tag)
+            params.extend(query.tags)
         if query.type:
             where_clauses.append("e.type = ?")
             params.append(query.type)
@@ -454,16 +455,17 @@ def list_events(root: Path, query: LogQuery) -> list[EventRecord]:
             sql.append("JOIN event_resources er ON er.event_internal_id = e.internal_id")
             where_clauses.append("er.resource_public_id = ?")
             params.append(query.resource)
-        if query.tag:
+        if query.tags:
+            placeholders = ", ".join("?" for _ in query.tags)
             where_clauses.append(
-                """
+                f"""
                 EXISTS (
                     SELECT 1 FROM event_tags t
-                    WHERE t.event_internal_id = e.internal_id AND t.tag = ?
+                    WHERE t.event_internal_id = e.internal_id AND t.tag IN ({placeholders})
                 )
                 """
             )
-            params.append(query.tag)
+            params.extend(query.tags)
         if query.event_type:
             where_clauses.append("e.event_type = ?")
             params.append(query.event_type)

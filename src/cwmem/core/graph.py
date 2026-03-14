@@ -11,6 +11,7 @@ from cwmem.core import store as _store
 from cwmem.core.fingerprints import compute_edge_fingerprint, compute_entity_fingerprint
 from cwmem.core.ids import generate_internal_id, next_public_id
 from cwmem.core.models import (
+    CommandWarning,
     CreateEdgeInput,
     CreateEntityInput,
     EdgeRecord,
@@ -22,6 +23,7 @@ from cwmem.core.models import (
     SearchHit,
     SearchHitExplanation,
 )
+from cwmem.output.envelope import add_warning
 
 
 def add_entity(root: Path, entity_input: CreateEntityInput) -> EntityRecord:
@@ -45,6 +47,25 @@ def add_entity(root: Path, entity_input: CreateEntityInput) -> EntityRecord:
                     details={"name": entity_input.name},
                     suggested_action="Provide `--name` with a non-empty value.",
                 )
+
+            existing_dup = conn.execute(
+                "SELECT public_id FROM entities WHERE entity_type = ? AND name = ?",
+                (entity_type, name),
+            ).fetchone()
+            if existing_dup is not None:
+                _store._raise_validation(
+                    f"An entity with type {entity_type!r} and name {name!r} already exists.",
+                    details={
+                        "entity_type": entity_type,
+                        "name": name,
+                        "existing_id": existing_dup["public_id"],
+                    },
+                    suggested_action=(
+                        "Reuse the existing entity or choose a different name/type."
+                    ),
+                )
+
+            _warn_taxonomy_entity_type(root, entity_type)
 
             record = EntityRecord(
                 internal_id=generate_internal_id(),
@@ -177,6 +198,7 @@ def add_edge(root: Path, edge_input: CreateEdgeInput) -> EdgeRecord:
                 )
 
             _store._validate_resources_exist(conn, [source_id, target_id])
+            _warn_taxonomy_relation_type(root, relation_type)
             existing = conn.execute(
                 """
                 SELECT public_id
@@ -530,3 +552,56 @@ def _inferred_public_id(source_id: str, target_id: str, shared_refs: set[str]) -
         "|".join([source_id, target_id, *sorted(shared_refs)]).encode("utf-8")
     ).hexdigest()
     return f"iedg-{digest[:12]}"
+
+
+def _load_taxonomy_set(root: Path, taxonomy_key: str) -> set[str] | None:
+    """Load a taxonomy item list from disk. Returns None if file is missing/unreadable."""
+    from cwmem.core import paths as _paths
+
+    for relative_path, seed_payload in _paths.TAXONOMY_SEEDS.items():
+        if taxonomy_key in relative_path:
+            absolute_path = root / relative_path
+            if absolute_path.is_file():
+                try:
+                    import orjson
+
+                    payload = orjson.loads(absolute_path.read_bytes())
+                    items = payload.get("items", [])
+                    if isinstance(items, list):
+                        return {str(i).strip() for i in items if str(i).strip()}
+                except Exception:  # noqa: BLE001
+                    pass
+            items = seed_payload.get("items", [])
+            if isinstance(items, list):
+                return {str(i).strip() for i in items if str(i).strip()}
+    return None
+
+
+def _warn_taxonomy_entity_type(root: Path, entity_type: str) -> None:
+    allowed = _load_taxonomy_set(root, "entity-types")
+    if allowed is not None and entity_type not in allowed:
+        add_warning(
+            CommandWarning(
+                code="WARN_TAXONOMY_ENTITY_TYPE",
+                message=(
+                    f"Entity type {entity_type!r} is not in the taxonomy. "
+                    "It will be flagged by `cwmem verify`."
+                ),
+                details={"entity_type": entity_type, "allowed": sorted(allowed)},
+            )
+        )
+
+
+def _warn_taxonomy_relation_type(root: Path, relation_type: str) -> None:
+    allowed = _load_taxonomy_set(root, "relation-types")
+    if allowed is not None and relation_type not in allowed:
+        add_warning(
+            CommandWarning(
+                code="WARN_TAXONOMY_RELATION_TYPE",
+                message=(
+                    f"Relation type {relation_type!r} is not in the taxonomy. "
+                    "It will be flagged by `cwmem verify`."
+                ),
+                details={"relation_type": relation_type, "allowed": sorted(allowed)},
+            )
+        )

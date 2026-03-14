@@ -78,10 +78,8 @@ def test_validate_reports_stale_embeddings_after_entry_update_without_rebuild(
     )
 
     completed, payload = run_any(run_cli, tmp_path, "validate")
-    assert completed.returncode == 0, completed
-    result = payload["result"]
-    assert isinstance(result, dict), result
-    assert result["ok"] is False
+    assert completed.returncode == 10, completed
+    assert payload["ok"] is False
 
     serialized = json.dumps(payload, sort_keys=True).lower()
     assert "embedding" in serialized

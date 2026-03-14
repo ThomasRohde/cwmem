@@ -57,7 +57,7 @@ def get_command(  # noqa: B008
 
 
 def list_command(  # noqa: B008
-    tag: str | None = typer.Option(None, "--tag", "--tags"),
+    tags: list[str] | None = typer.Option(None, "--tag", "--tags"),
     entry_type: str | None = typer.Option(None, "--type"),
     status: str | None = typer.Option(None, "--status"),
     author: str | None = typer.Option(None, "--author"),
@@ -70,7 +70,7 @@ def list_command(  # noqa: B008
         query = _build_query(
             ListEntriesQuery,
             {
-                "tag": tag,
+                "tags": tags or [],
                 "type": entry_type,
                 "status": status,
                 "author": author,
@@ -86,7 +86,7 @@ def list_command(  # noqa: B008
 def log_command(  # noqa: B008
     resource: str | None = typer.Option(None, "--resource"),
     event_type: str | None = typer.Option(None, "--event-type"),
-    tag: str | None = typer.Option(None, "--tag", "--tags"),
+    tags: list[str] | None = typer.Option(None, "--tag", "--tags"),
     limit: int = typer.Option(50, "--limit"),
     cwd: Path | None = typer.Option(None, "--cwd"),
 ) -> None:
@@ -98,7 +98,7 @@ def log_command(  # noqa: B008
             {
                 "resource": resource,
                 "event_type": event_type,
-                "tag": tag,
+                "tags": tags or [],
                 "limit": limit,
             },
         )
@@ -115,7 +115,7 @@ def log_command(  # noqa: B008
 def search_command(  # noqa: B008
     q: str = typer.Argument(...),
     tag: str | None = typer.Option(None, "--tag"),
-    search_type: str | None = typer.Option(None, "--type"),
+    search_type: str | None = typer.Option(None, "--type", help="Filter by entry type (e.g. note, decision, bug), not resource type."),
     author: str | None = typer.Option(None, "--author"),
     date_from: str | None = typer.Option(None, "--from"),
     date_to: str | None = typer.Option(None, "--to"),

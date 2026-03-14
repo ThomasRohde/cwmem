@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # ruff: noqa: B008
 import sys
+import threading
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -42,11 +43,32 @@ def _should_read_stdin(*values: object) -> bool:
     return all(_is_unset(value) for value in values)
 
 
+def _try_read_stdin(timeout: float = 1.0) -> str | None:
+    """Read stdin with a timeout to avoid blocking on empty pipes."""
+    result: list[str | None] = [None]
+    exc_holder: list[BaseException | None] = [None]
+
+    def _reader() -> None:
+        try:
+            result[0] = sys.stdin.read()
+        except BaseException as exc:  # noqa: BLE001
+            exc_holder[0] = exc
+
+    thread = threading.Thread(target=_reader, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout)
+    if thread.is_alive():
+        return None
+    if exc_holder[0] is not None:
+        raise exc_holder[0]
+    return result[0]
+
+
 def _parse_stdin_json(*, enabled: bool) -> dict[str, Any]:
     if not enabled or sys.stdin.isatty():
         return {}
     try:
-        raw = sys.stdin.read()
+        raw = _try_read_stdin()
     except UnicodeDecodeError as exc:
         raise AppError.from_command_error(
             _validation_error(
@@ -54,6 +76,8 @@ def _parse_stdin_json(*, enabled: bool) -> dict[str, Any]:
                 details={'source': 'stdin'},
             )
         ) from exc
+    if raw is None:
+        return {}
     raw = raw.strip()
     if not raw:
         return {}
@@ -706,7 +730,11 @@ def _make_placeholder(command_id: str, human_name: str):
     return command
 
 
-def deprecate_command(resource_id: str | None = typer.Argument(None)) -> None:
+def deprecate_command(  # noqa: B008
+    resource_id: str | None = typer.Argument(None),
+    cwd: Path | None = typer.Option(None, '--cwd'),
+) -> None:
+    _ = cwd  # accepted for consistency; command is not yet implemented
     details = {'resource_id': resource_id} if resource_id is not None else None
     target_resource = 'resource' if resource_id is not None else 'repository'
     raise SystemExit(

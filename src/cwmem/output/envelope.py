@@ -26,6 +26,9 @@ _CURRENT_REQUEST_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar
 _CURRENT_COMMAND_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "cwmem_current_command_id", default=None
 )
+_CURRENT_WARNINGS: contextvars.ContextVar[list[CommandWarning] | None] = contextvars.ContextVar(
+    "cwmem_current_warnings", default=None
+)
 
 
 class AppError(Exception):
@@ -50,6 +53,13 @@ def current_request_id() -> str | None:
 
 def current_command_id() -> str | None:
     return _CURRENT_COMMAND_ID.get()
+
+
+def add_warning(warning: CommandWarning) -> None:
+    """Append a warning to the current request's warning list."""
+    warnings = _CURRENT_WARNINGS.get(None)
+    if warnings is not None:
+        warnings.append(warning)
 
 
 def exit_code_for_error(code: str) -> int:
@@ -163,6 +173,8 @@ def run_cli_command(command: str, target_resource: str, handler: Callable[[], An
     token = request_id()
     request_context = _CURRENT_REQUEST_ID.set(token)
     command_context = _CURRENT_COMMAND_ID.set(command)
+    warnings_list: list[CommandWarning] = []
+    warnings_context = _CURRENT_WARNINGS.set(warnings_list)
 
     try:
         result = handler()
@@ -172,6 +184,7 @@ def run_cli_command(command: str, target_resource: str, handler: Callable[[], An
             request_token=token,
             ok=True,
             result=result,
+            warnings=warnings_list or None,
             duration_ms=int((time.perf_counter() - started) * 1000),
         )
         write_json(envelope)
@@ -183,6 +196,7 @@ def run_cli_command(command: str, target_resource: str, handler: Callable[[], An
             request_token=token,
             ok=False,
             result=None,
+            warnings=warnings_list or None,
             errors=[exc.error],
             duration_ms=int((time.perf_counter() - started) * 1000),
         )
@@ -196,6 +210,7 @@ def run_cli_command(command: str, target_resource: str, handler: Callable[[], An
             request_token=token,
             ok=False,
             result=None,
+            warnings=warnings_list or None,
             errors=[app_error.error],
             duration_ms=int((time.perf_counter() - started) * 1000),
         )
@@ -209,12 +224,14 @@ def run_cli_command(command: str, target_resource: str, handler: Callable[[], An
             request_token=token,
             ok=False,
             result=None,
+            warnings=warnings_list or None,
             errors=[error],
             duration_ms=int((time.perf_counter() - started) * 1000),
         )
         write_json(envelope)
         return EXIT_CODES["internal"]
     finally:
+        _CURRENT_WARNINGS.reset(warnings_context)
         _CURRENT_COMMAND_ID.reset(command_context)
         _CURRENT_REQUEST_ID.reset(request_context)
 

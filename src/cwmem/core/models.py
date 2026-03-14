@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime as _dt
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -176,6 +177,13 @@ class EdgeRecord(BaseModel):
     updated_at: str
 
 
+def _validate_no_empty_tags(tags: list[str]) -> list[str]:
+    for tag in tags:
+        if not tag.strip():
+            raise ValueError("Tags must not be empty strings. Remove empty `--tag` values.")
+    return tags
+
+
 class CreateEntryInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -189,6 +197,11 @@ class CreateEntryInput(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
     entity_refs: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_tags(self) -> CreateEntryInput:
+        _validate_no_empty_tags(self.tags)
+        return self
 
 
 class UpdateEntryInput(BaseModel):
@@ -227,6 +240,11 @@ class CreateEventInput(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     occurred_at: str | None = None
 
+    @model_validator(mode="after")
+    def check_tags(self) -> CreateEventInput:
+        _validate_no_empty_tags(self.tags)
+        return self
+
 
 class CreateEntityInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -239,6 +257,11 @@ class CreateEntityInput(BaseModel):
     tags: list[str] = Field(default_factory=list)
     provenance: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_tags(self) -> CreateEntityInput:
+        _validate_no_empty_tags(self.tags)
+        return self
 
 
 class CreateEdgeInput(BaseModel):
@@ -257,14 +280,14 @@ class LogQuery(BaseModel):
 
     resource: str | None = None
     event_type: str | None = None
-    tag: str | None = None
+    tags: list[str] = Field(default_factory=list)
     limit: int = Field(default=50, ge=1, le=500)
 
 
 class ListEntriesQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    tag: str | None = None
+    tags: list[str] = Field(default_factory=list)
     type: str | None = None
     status: str | None = None
     author: str | None = None
@@ -293,12 +316,21 @@ class SearchQuery(BaseModel):
     limit: int = Field(default=20, ge=1, le=200)
 
     @model_validator(mode="after")
-    def validate_search_modes(self) -> SearchQuery:
+    def validate_search_options(self) -> SearchQuery:
         if self.lexical_only and self.semantic_only:
             raise ValueError(
                 "`--lexical-only` and `--semantic-only` cannot be used together. "
                 "Choose one mode or omit both for hybrid search."
             )
+        for field_name, value in [("date_from", self.date_from), ("date_to", self.date_to)]:
+            if value is not None:
+                try:
+                    _dt.fromisoformat(value)
+                except (ValueError, TypeError) as exc:
+                    flag = f"--{field_name.replace('_', '-')}"
+                    raise ValueError(
+                        f"`{flag}` must be a valid ISO 8601 date string, got: {value!r}"
+                    ) from exc
         return self
 
 
