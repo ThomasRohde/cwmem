@@ -1,0 +1,92 @@
+Screen {
+    layout: vertical;
+}
+
+#main-tabs {
+    height: 1fr;
+}
+
+.tab-shell {
+    height: 1fr;
+}
+
+.toolbar {
+    height: auto;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+.toolbar > * {
+    margin-right: 1;
+}
+
+.two-pane {
+    height: 1fr;
+}
+
+.two-pane > .results-table {
+    width: 3fr;
+}
+
+.two-pane > .preview {
+    width: 2fr;
+}
+
+.graph-pane {
+    height: 1fr;
+}
+
+.graph-pane > .results-table {
+    width: 3fr;
+}
+
+.graph-right {
+    width: 2fr;
+    height: 1fr;
+}
+
+.results-table {
+    height: 1fr;
+}
+
+.graph-right > .graph-edges,
+.graph-right > .preview {
+    width: 1fr;
+}
+
+.graph-edges {
+    height: 12;
+    margin-bottom: 1;
+}
+
+.preview {
+    height: 1fr;
+    border: round $accent;
+    padding: 0 1;
+    overflow-y: auto;
+}
+
+#write-scroll {
+    width: 3fr;
+    padding: 0 1;
+}
+
+#write-preview {
+    width: 2fr;
+}
+
+#add-body {
+    height: 12;
+    margin-bottom: 1;
+}
+
+.section-title {
+    text-style: bold;
+    color: $accent;
+    margin: 1 0 0 1;
+}
+
+#write-selected-resource {
+    padding: 0 1;
+    color: $secondary;
+}

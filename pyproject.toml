@@ -29,6 +29,7 @@ dependencies = [
   "orjson>=3.10.0",
   "portalocker>=3.1.1",
   "pydantic>=2.10.0",
+  "textual>=8.1,<9",
   "typer>=0.16.0",
 ]
 

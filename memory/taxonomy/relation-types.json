@@ -1,16 +1,16 @@
 {
-    "items": [
-        "contradicts",
-        "depends_on",
-        "derived_from",
-        "influences",
-        "mentions",
-        "owned_by",
-        "references",
-        "related_to",
-        "supersedes",
-        "supports"
-    ],
-    "schema_version": "1.0",
-    "taxonomy": "relation-types"
+  "items": [
+    "contradicts",
+    "depends_on",
+    "derived_from",
+    "influences",
+    "mentions",
+    "owned_by",
+    "references",
+    "related_to",
+    "supersedes",
+    "supports"
+  ],
+  "schema_version": "1.0",
+  "taxonomy": "relation-types"
 }

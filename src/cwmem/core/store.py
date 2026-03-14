@@ -389,6 +389,38 @@ def get_entry(root: Path, public_id: str) -> EntryRecord:
         conn.close()
 
 
+def get_event(root: Path, public_id: str) -> EventRecord:
+    conn = _connect(root)
+    try:
+        return _get_event_by_public_id(conn, public_id)
+    finally:
+        conn.close()
+
+
+def get_entity(root: Path, public_id: str) -> EntityRecord:
+    conn = _connect(root)
+    try:
+        row = conn.execute("SELECT * FROM entities WHERE public_id = ?", (public_id,)).fetchone()
+        if row is None:
+            _raise_validation(
+                "Entity not found.",
+                details={"resource_id": public_id},
+                suggested_action="Run `cwmem search` or `cwmem graph` to inspect entities.",
+            )
+        return _entity_from_row(conn, row)
+    finally:
+        conn.close()
+
+
+def get_resource(root: Path, public_id: str) -> EntryRecord | EventRecord | EntityRecord:
+    resource_kind = _resource_kind(public_id)
+    if resource_kind == "entry":
+        return get_entry(root, public_id)
+    if resource_kind == "event":
+        return get_event(root, public_id)
+    return get_entity(root, public_id)
+
+
 def list_entries(root: Path, query: ListEntriesQuery) -> list[EntryRecord]:
     conn = _connect(root)
     try:

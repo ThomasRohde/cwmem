@@ -5,10 +5,10 @@ from typing import Any
 
 import typer
 
-from cwmem import __version__
 from cwmem.core import embeddings as _emb
 from cwmem.core.models import GuideDocument, GuideFlag, GuideWorkflow, InitResult, StatusResult
-from cwmem.core.paths import EMPTY_SURFACES, REQUIRED_DIRECTORIES, TAXONOMY_SEEDS, relpath
+from cwmem.core.paths import REQUIRED_DIRECTORIES, TAXONOMY_SEEDS, relpath
+from cwmem.core.repository import build_status_result
 from cwmem.core.store import ensure_schema
 from cwmem.output.envelope import (
     AppError,
@@ -69,6 +69,36 @@ def build_guide_document() -> GuideDocument:
                 )
             ],
             "output_schema": "StatusResult",
+        },
+        {
+            "name": "tui",
+            "canonical_id": "system.tui",
+            "implemented": True,
+            "mutating": True,
+            "interactive": True,
+            "requires_tty": True,
+            "summary": "Launch the interactive Textual explorer for humans.",
+            "aliases": [],
+            "arguments": [
+                GuideFlag(
+                    name="--cwd",
+                    required=False,
+                    kind="path",
+                    description=(
+                        "Repository root to explore. Defaults to the current "
+                        "working directory."
+                    ),
+                )
+            ],
+            "help": (
+                "Launch the interactive Textual explorer for humans.\n\n"
+                "This command requires an interactive TTY. On success it takes "
+                "over the terminal instead of emitting a JSON envelope. When "
+                "run without a TTY, it fails with a structured validation "
+                "envelope. `LLM=true` does not block an explicit human TTY launch."
+            ),
+            "non_interactive_error": "ERR_VALIDATION_INPUT",
+            "output_schema": "InteractiveTerminalSession",
         },
         {
             "name": "get",
@@ -347,18 +377,30 @@ def build_guide_document() -> GuideDocument:
         },
         output_mode_policy={
             "default": "json",
-            "active": ["json"],
+            "active": ["json", "interactive"],
             "planned": ["table", "markdown"],
             "precedence": ["flags", "environment", "isatty"],
-            "stdout_contract": "exactly one structured envelope",
+            "stdout_contract": (
+                "exactly one structured envelope for machine commands; documented "
+                "interactive commands may take over the terminal on success"
+            ),
             "stderr_contract": "diagnostics, progress, warnings, and logs only",
             "llm_mode": {
                 "environment_variable": "LLM",
                 "value": "true",
                 "behavior": (
                     "No interactive prompts, JSON envelope on stdout, minimal "
-                    "stderr noise."
+                    "stderr noise. Interactive commands such as `system.tui` "
+                    "still require a TTY and return validation errors when "
+                    "launched non-interactively."
                 ),
+            },
+            "interactive_commands": {
+                "system.tui": {
+                    "requires_tty": True,
+                    "success_stdout_contract": "interactive terminal session",
+                    "failure_stdout_contract": "structured envelope",
+                }
             },
         },
         command_catalog=command_catalog,
@@ -371,6 +413,12 @@ def build_guide_document() -> GuideDocument:
                 "additionalProperties": False,
             },
             "system.status": {
+                "type": "object",
+                "properties": {"cwd": {"type": "string"}},
+                "required": [],
+                "additionalProperties": False,
+            },
+            "system.tui": {
                 "type": "object",
                 "properties": {"cwd": {"type": "string"}},
                 "required": [],
@@ -417,6 +465,12 @@ def build_guide_document() -> GuideDocument:
                     "empty_surfaces",
                     "database_exists",
                 ]
+            },
+            "InteractiveTerminalSession": {
+                "description": (
+                    "Human-only interactive terminal session. Success takes over "
+                    "stdout; launch failures return a normal Envelope."
+                )
             },
         },
         error_codes=[
@@ -565,6 +619,7 @@ def build_guide_document() -> GuideDocument:
             {"command": "cwmem guide", "canonical_id": "system.guide"},
             {"command": "cwmem init", "canonical_id": "system.init"},
             {"command": "cwmem status", "canonical_id": "system.status"},
+            {"command": "cwmem tui", "canonical_id": "system.tui"},
             {
                 "command": 'cwmem add --title "Capability model" "Aligned the baseline."',
                 "canonical_id": "memory.add",
@@ -650,60 +705,7 @@ def _build_init_result(root: Path) -> InitResult:
 
 
 def _build_status_result(root: Path) -> StatusResult:
-    existing_paths: list[str] = []
-    missing_paths: list[str] = []
-
-    for relative in REQUIRED_DIRECTORIES:
-        path = root / relative
-        (existing_paths if path.is_dir() else missing_paths).append(relpath(path, root))
-
-    taxonomy_files: list[str] = []
-    for relative in TAXONOMY_SEEDS:
-        path = root / relative
-        if path.is_file():
-            taxonomy_files.append(relpath(path, root))
-        else:
-            missing_paths.append(relpath(path, root))
-
-    database_file = root / ".cwmem" / "memory.sqlite"
-    if database_file.is_file():
-        existing_paths.append(relpath(database_file, root))
-    else:
-        missing_paths.append(relpath(database_file, root))
-
-    model_manifest = root / "models" / "model2vec" / "manifest.json"
-    if model_manifest.is_file():
-        existing_paths.append(relpath(model_manifest, root))
-    else:
-        missing_paths.append(relpath(model_manifest, root))
-
-    empty_surfaces = [
-        relpath(root / relative, root)
-        for relative in EMPTY_SURFACES
-        if (root / relative).is_dir() and not any((root / relative).iterdir())
-    ]
-
-    initialized = not missing_paths
-    return StatusResult(
-        initialized=initialized,
-        package_version=__version__,
-        paths={
-            "runtime_dir": relpath(root / ".cwmem", root),
-            "log_dir": relpath(root / ".cwmem" / "logs", root),
-            "plan_dir": relpath(root / ".cwmem" / "plans", root),
-            "memory_dir": relpath(root / "memory", root),
-            "taxonomy_dir": relpath(root / "memory" / "taxonomy", root),
-            "model_dir": relpath(root / "models" / "model2vec", root),
-            "model_manifest_path": relpath(model_manifest, root),
-            "database_path": relpath(database_file, root),
-            "lock_path": relpath(root / ".cwmem" / "memory.sqlite.lock", root),
-        },
-        existing_paths=sorted(set(existing_paths)),
-        missing_paths=sorted(set(missing_paths)),
-        empty_surfaces=empty_surfaces,
-        database_exists=database_file.is_file(),
-        taxonomy_seed_files=taxonomy_files,
-    )
+    return build_status_result(root)
 
 
 def guide_command() -> None:

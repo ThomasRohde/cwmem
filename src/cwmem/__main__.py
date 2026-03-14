@@ -8,7 +8,7 @@ import typer
 from typer.main import get_command
 
 from cwmem import __version__
-from cwmem.cli import graph, maintenance, read, setup, sync, write
+from cwmem.cli import graph, maintenance, read, setup, sync, tui, write
 from cwmem.output.envelope import (
     emit_internal_failure,
     run_cli_command,
@@ -22,7 +22,7 @@ syncable format.
 Typical flow:
   1. Run `cwmem init` to create the runtime database and tracked memory files.
   2. Capture context with `cwmem add`, `cwmem event-add`, or `cwmem link`.
-  3. Retrieve it later with `cwmem search`, `cwmem related`, or `cwmem get`.
+  3. Retrieve it later with `cwmem search`, `cwmem related`, `cwmem get`, or `cwmem tui`.
   4. Refresh derived state with `cwmem build`, then keep checked-in artifacts aligned
      with `cwmem sync export` and `cwmem verify`.
 
@@ -36,6 +36,7 @@ app = typer.Typer(
 )
 
 setup.register(app)
+tui.register(app)
 read.register(app)
 write.register(app)
 graph.register(app)

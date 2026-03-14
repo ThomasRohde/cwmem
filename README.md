@@ -22,6 +22,7 @@ It keeps fast operational state in SQLite, exports deterministic collaboration a
 - deterministic `sync export` / `sync import` for checked-in artifacts
 - dry-run, idempotency keys, sidecar locking, `plan`, `validate`, `apply`, and `verify`
 - a machine-first JSON-envelope CLI with human-readable help and version output
+- a Textual-based human explorer via `cwmem tui`, including safe add / tag / link workflows
 
 ## Installation
 
@@ -63,6 +64,9 @@ printf 'Store architectural context alongside the codebase.' | \
 cwmem search "repo-native memory"
 cwmem list
 
+# Or explore it interactively as a human
+cwmem tui
+
 # Add structure with entities and graph edges
 cwmem entity-add --entity-type system --name "cwmem"
 cwmem link mem-000001 ent-000001 --relation references
@@ -99,6 +103,34 @@ cwmem verify
 
 Without `--body-from-stdin`, piped stdin is reserved for JSON object input when
 `cwmem add` is driven machine-to-machine.
+
+## Interactive TUI
+
+`cwmem tui` launches a Textual interface for humans who want to browse and
+work with repository memory without dropping into one command at a time.
+
+The current TUI includes:
+
+- a repository status dashboard
+- entry browsing and preview
+- lexical / semantic / hybrid search with graph expansion
+- related / graph inspection
+- formal log browsing
+- preview / apply flows for `add`, `tag`, and `link`
+
+Useful shortcuts:
+
+- `Ctrl+P` opens the command palette
+- `F1` through `F6` switch between the main tabs
+- `Ctrl+R` refreshes the active tab
+
+`cwmem tui` is intentionally human-only. It requires an interactive TTY and
+returns a structured validation error instead of launching when invoked from a
+non-interactive context. An ambient `LLM=true` environment does not block an
+explicit human TTY launch.
+
+The app is built on a shared `cwmem.ui` service/view-model layer so a later
+browser-facing `cwmem gui` can reuse the same exploration logic.
 
 ## How `cwmem` fits into a repository
 
@@ -148,6 +180,10 @@ cwmem verify
 
 Every command writes exactly one JSON envelope to stdout. That makes the CLI easy to automate, inspect, and pipe into other tooling.
 
+The deliberate exception is `cwmem tui`: on successful launch it takes over the
+terminal as an interactive Textual app, and on non-interactive launch attempts
+it returns a normal structured validation envelope instead.
+
 Reads are parallel-safe. Mutating commands serialize through `.cwmem/memory.sqlite.lock` and support safety flags such as:
 
 - `--dry-run`
@@ -163,6 +199,7 @@ Use `cwmem guide` when you want the machine-readable command catalog, schema inf
 |---------|-----------------|
 | `cwmem guide` | Machine-readable CLI contract and workflow metadata |
 | `cwmem init` / `status` | Bootstrap and inspect repository memory surfaces |
+| `cwmem tui` | Human-first Textual explorer with dashboard, search, graph, log, and safe add / tag / link flows |
 | `cwmem add`, `update`, `tag-add`, `event-add`, `entity-add`, `link` | Capture or mutate memory records |
 | `cwmem get`, `list`, `search`, `related`, `graph`, `log` | Read, retrieve, search, and traverse memory |
 | `cwmem sync export` / `sync import` | Move between SQLite runtime state and checked-in artifacts |
