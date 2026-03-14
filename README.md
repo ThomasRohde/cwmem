@@ -55,6 +55,10 @@ cwmem init
 cwmem add --title "Adopt repo-native memory" --type decision \
   "Store architectural context alongside the codebase."
 
+# Or pipe a plain-text body explicitly
+printf 'Store architectural context alongside the codebase.' | \
+  cwmem add --title "Adopt repo-native memory" --type decision --body-from-stdin
+
 # Search and inspect what you stored
 cwmem search "repo-native memory"
 cwmem list
@@ -79,6 +83,10 @@ cwmem init
 cwmem add --title "Adopt repo-native memory" --type decision `
   "Store architectural context alongside the codebase."
 
+# Or pipe a plain-text body explicitly
+Get-Content .\note.txt -Raw | `
+  cwmem add --title "Imported note" --type note --body-from-stdin
+
 # Read JSON envelopes naturally in PowerShell
 cwmem search "repo-native memory" | ConvertFrom-Json
 
@@ -86,6 +94,9 @@ cwmem search "repo-native memory" | ConvertFrom-Json
 cwmem sync export
 cwmem verify
 ```
+
+Without `--body-from-stdin`, piped stdin is reserved for JSON object input when
+`cwmem add` is driven machine-to-machine.
 
 ## How `cwmem` fits into a repository
 

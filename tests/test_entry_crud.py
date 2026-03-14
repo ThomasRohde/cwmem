@@ -7,6 +7,7 @@ from tests.phase2_helpers import (
     extract_entries,
     extract_entry,
     init_repo,
+    parse_envelope_any_exit,
     run_any,
     run_ok,
 )
@@ -166,4 +167,53 @@ def test_update_rejects_stale_fingerprint(run_cli, tmp_path: Path) -> None:
 
     serialized_errors = json.dumps(payload["errors"], sort_keys=True).lower()
     assert "fingerprint" in serialized_errors or "stale" in serialized_errors
+
+
+def test_add_accepts_plain_text_body_from_stdin(run_cli, tmp_path: Path) -> None:
+    init_repo(run_cli, tmp_path)
+    body = "Body from stdin.\nSecond line.\n"
+
+    completed = run_cli(
+        tmp_path,
+        "add",
+        "--title",
+        "stdin body",
+        "--type",
+        "note",
+        "--body-from-stdin",
+        input_text=body,
+    )
+    payload = parse_envelope_any_exit(completed.stdout, completed.stderr)
+
+    assert completed.returncode == 0, completed
+    assert payload["ok"] is True, payload
+    created_entry = extract_entry(payload)
+    assert created_entry["title"] == "stdin body"
+    assert created_entry["body"] == body
+
+
+def test_add_rejects_body_from_stdin_when_inline_body_is_also_supplied(
+    run_cli, tmp_path: Path
+) -> None:
+    init_repo(run_cli, tmp_path)
+
+    completed = run_cli(
+        tmp_path,
+        "add",
+        "--title",
+        "stdin conflict",
+        "--body-from-stdin",
+        "Inline body",
+        input_text="Piped body",
+    )
+    payload = parse_envelope_any_exit(completed.stdout, completed.stderr)
+
+    assert completed.returncode == 10, completed
+    assert payload["ok"] is False, payload
+    assert payload["command"] == "memory.add"
+    assert [error["code"] for error in payload["errors"]] == ["ERR_VALIDATION_INPUT"]
+
+    serialized = json.dumps(payload, sort_keys=True).lower()
+    assert "body-from-stdin" in serialized
+    assert "not both" in serialized
 

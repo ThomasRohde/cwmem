@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from typing import Any, cast
 
 import click
 import typer
@@ -47,6 +48,10 @@ def main() -> None:
     try:
         command.main(args=sys.argv[1:], prog_name="cwmem", standalone_mode=False)
     except click.exceptions.NoArgsIsHelpError as exc:
+        try:
+            command.main(args=["--help"], prog_name="cwmem", standalone_mode=False)
+        except click.exceptions.Exit:
+            pass
         raise SystemExit(0) from exc
     except click.exceptions.ClickException as exc:
         message = exc.format_message()
@@ -99,14 +104,24 @@ def _build_click_app() -> click.Command:
         if summary:
             subcommand.help = summary
             subcommand.short_help = summary
+    if not sys.stdout.isatty():
+        _disable_rich_help(command)
     return command
 
 
 def _command_summary_from_catalog(item: dict[str, object]) -> str:
     summary = str(item["summary"])
     if not bool(item["implemented"]):
-        return f"{summary} [not yet implemented]"
+        return f"Not yet implemented: {summary}"
     return summary
+
+
+def _disable_rich_help(command: click.Command) -> None:
+    if hasattr(command, "rich_markup_mode"):
+        cast(Any, command).rich_markup_mode = None
+    if isinstance(command, click.Group):
+        for subcommand in command.commands.values():
+            _disable_rich_help(subcommand)
 
 
 def _show_version(ctx: click.Context, param: click.Parameter, value: bool) -> None:

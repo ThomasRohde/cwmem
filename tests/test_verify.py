@@ -16,25 +16,23 @@ from tests.phase7_helpers import run_phase7_any, run_phase7_ok
 
 def _assert_verify_problem(completed, payload: dict[str, object]) -> str:
     assert payload["command"] == "system.verify"
+    assert completed.returncode == 10, (
+        "Verify failures should map to the validation exit code.\n"
+        f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+    )
+    assert payload["ok"] is False, payload
 
-    result = payload.get("result")
-    is_result_problem = isinstance(result, dict) and result.get("ok") is False
-    assert payload["ok"] is False or is_result_problem, payload
+    errors = payload.get("errors")
+    assert isinstance(errors, list) and errors, payload
+    first_error = errors[0]
+    assert isinstance(first_error, dict), errors
+    assert first_error.get("code") == "ERR_VALIDATION_INPUT", first_error
 
-    if payload["ok"] is False:
-        assert completed.returncode == 10, (
-            "Verify failures should map to the validation exit code when the command "
-            "fails outright.\n"
-            f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
-        )
-    else:
-        assert completed.returncode == 0, (
-            "Structured verify results should still exit successfully.\n"
-            f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
-        )
-        issues = result.get("issues")
-        if issues is not None:
-            assert isinstance(issues, list) and issues, result
+    details = first_error.get("details")
+    assert isinstance(details, dict), first_error
+    issues = details.get("issues")
+    if issues is not None:
+        assert isinstance(issues, list) and issues, details
 
     return json.dumps(payload, sort_keys=True).lower()
 

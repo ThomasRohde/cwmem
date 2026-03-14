@@ -44,13 +44,16 @@ def run_cli(cli_env: dict[str, str]):
             "todo e1-reconcile-verify."
         )
 
-    def _run(tmp_repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def _run(
+        tmp_repo: Path, *args: str, input_text: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
         try:
             return subprocess.run(
                 [sys.executable, "-m", "cwmem", *args],
                 cwd=tmp_repo,
                 env=cli_env,
                 capture_output=True,
+                input=input_text,
                 text=True,
                 encoding="utf-8",
                 check=False,

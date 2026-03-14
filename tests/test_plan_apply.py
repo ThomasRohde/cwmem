@@ -72,3 +72,24 @@ def test_validate_plan_reports_state_drift_after_repository_changes(
     serialized = json.dumps(payload, sort_keys=True).lower()
     assert "plan" in serialized
     assert any(token in serialized for token in ("drift", "mismatch", "state")), payload
+
+
+def test_missing_plan_file_reports_read_error_for_validate_and_apply(
+    run_cli, tmp_path: Path
+) -> None:
+    seed_sync_repo(run_cli, tmp_path)
+    missing_plan = tmp_path / ".cwmem" / "plans" / "missing-plan.json"
+
+    for command_name in ("validate", "apply"):
+        completed, payload = run_any(run_cli, tmp_path, command_name, "--plan", str(missing_plan))
+        assert completed.returncode == 50, completed
+        assert payload["ok"] is False, payload
+        assert payload["command"] == f"system.{command_name}"
+
+        errors = payload["errors"]
+        assert isinstance(errors, list) and errors, payload
+        assert errors[0]["code"] == "ERR_IO_READ_FAILED", errors
+
+        serialized = json.dumps(payload, sort_keys=True).lower()
+        assert "plan file" in serialized, payload
+        assert any(token in serialized for token in ("exist", "read")), payload

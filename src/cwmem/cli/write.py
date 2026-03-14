@@ -67,6 +67,19 @@ def _parse_stdin_json(*, enabled: bool) -> dict[str, Any]:
     return payload
 
 
+def _read_stdin_text(*, enabled: bool, option_name: str, field_name: str) -> str | None:
+    if not enabled:
+        return None
+    if sys.stdin.isatty():
+        raise AppError.from_command_error(
+            _validation_error(
+                f'Pipe or redirect standard input when using `--{option_name}`.',
+                details={'source': 'stdin', 'option': option_name, 'field': field_name},
+            )
+        )
+    return sys.stdin.read()
+
+
 def _merge_payload(base: dict[str, Any], **overrides: Any) -> dict[str, Any]:
     payload = dict(base)
     for key, value in overrides.items():
@@ -188,6 +201,11 @@ def add_command(  # noqa: B008
     related_ids: list[str] | None = typer.Option(None, '--related-id', '--relate'),
     entity_refs: list[str] | None = typer.Option(None, '--entity-ref', '--entity'),
     metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
+    body_from_stdin: bool = typer.Option(
+        False,
+        '--body-from-stdin',
+        help='Read the entry body from standard input as plain text.',
+    ),
     body: str | None = typer.Argument(None),
     dry_run: bool = typer.Option(False, '--dry-run'),
     idempotency_key: str | None = typer.Option(None, '--idempotency-key'),
@@ -197,8 +215,17 @@ def add_command(  # noqa: B008
     root = (cwd or Path.cwd()).resolve()
 
     def handler() -> dict[str, Any]:
+        if body_from_stdin and body is not None:
+            raise AppError.from_command_error(
+                _validation_error(
+                    'Provide `body` either as inline text or via `--body-from-stdin`, not both.',
+                    details={'field': 'body', 'option': 'body-from-stdin'},
+                )
+            )
+
         stdin_payload = _parse_stdin_json(
-            enabled=_should_read_stdin(
+            enabled=(not body_from_stdin)
+            and _should_read_stdin(
                 title,
                 entry_type,
                 status,
@@ -211,10 +238,19 @@ def add_command(  # noqa: B008
                 body,
             )
         )
+        body_text = _read_stdin_text(
+            enabled=body_from_stdin,
+            option_name='body-from-stdin',
+            field_name='body',
+        )
         payload = _merge_payload(
             stdin_payload,
             title=title,
-            body=_resolve_text_input(body, root=root, field_name='body'),
+            body=(
+                body_text
+                if body_from_stdin
+                else _resolve_text_input(body, root=root, field_name='body')
+            ),
             type=entry_type,
             status=status,
             author=author,

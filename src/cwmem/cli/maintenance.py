@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # ruff: noqa: B008
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import typer
 
@@ -11,7 +11,12 @@ from cwmem.core import validator as _validator
 from cwmem.core.models import PlanArtifact, ValidationIssue
 from cwmem.core.safety import execute_mutation
 from cwmem.core.store import get_fts_stats, rebuild_fts_index
-from cwmem.output.envelope import conflict_error, run_cli_command, validation_error
+from cwmem.output.envelope import (
+    conflict_error,
+    io_read_error,
+    run_cli_command,
+    validation_error,
+)
 
 
 def build_command(
@@ -63,7 +68,10 @@ def validate_command(
 
     def handler() -> dict[str, Any]:
         if plan_file is not None:
-            result = _planner.validate_plan(root, plan_file.resolve())
+            try:
+                result = _planner.validate_plan(root, plan_file.resolve())
+            except _planner.PlanArtifactError as exc:
+                _raise_plan_artifact_error(exc)
         else:
             result = _validator.validate_repository(root)
         return result.model_dump(mode="json")
@@ -119,7 +127,12 @@ def apply_command(
     plan_path = plan_file.resolve()
 
     def handler() -> dict[str, Any]:
-        validation = _planner.validate_plan(root, plan_path)
+        try:
+            artifact = _planner.load_plan_artifact(plan_path)
+        except _planner.PlanArtifactError as exc:
+            _raise_plan_artifact_error(exc)
+
+        validation = _planner.validate_loaded_plan(root, artifact)
         if not validation.ok:
             raise conflict_error(
                 "The saved plan no longer matches the current repository state.",
@@ -129,7 +142,6 @@ def apply_command(
                 },
             )
 
-        artifact = _planner.load_plan_artifact(plan_path)
         return execute_mutation(
             root=root,
             command_id="system.apply",
@@ -164,6 +176,11 @@ def verify_command(
             root,
             plan_path=plan_file.resolve() if plan_file is not None else None,
         )
+        if not result.ok:
+            raise validation_error(
+                "Repository verification failed.",
+                details=result.model_dump(mode="json"),
+            )
         return result.model_dump(mode="json")
 
     raise SystemExit(run_cli_command("system.verify", "repository", handler))
@@ -176,6 +193,14 @@ def register(app: typer.Typer) -> None:
     app.command("plan")(plan_command)
     app.command("apply")(apply_command)
     app.command("verify")(verify_command)
+
+
+def _raise_plan_artifact_error(exc: _planner.PlanArtifactError) -> NoReturn:
+    details = dict(exc.details)
+    details["plan_error_kind"] = exc.error_kind
+    if exc.error_kind in {"missing", "read"}:
+        raise io_read_error(str(exc), details=details)
+    raise validation_error(str(exc), details=details)
 
 
 def _build_preview(root: Path) -> dict[str, Any]:

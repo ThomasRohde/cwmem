@@ -120,6 +120,19 @@ def conflict_error(message: str, *, details: dict[str, Any] | None = None) -> Ap
     return AppError.from_command_error(error)
 
 
+def io_read_error(message: str, *, details: dict[str, Any] | None = None) -> AppError:
+    error = CommandError(
+        code="ERR_IO_READ_FAILED",
+        message=message,
+        retryable=False,
+        suggested_action=(
+            "Check that the input path exists and is readable, then retry the command."
+        ),
+        details=details or {},
+    )
+    return AppError.from_command_error(error)
+
+
 def io_error(message: str, *, details: dict[str, Any] | None = None) -> AppError:
     error = CommandError(
         code="ERR_IO_WRITE_FAILED",

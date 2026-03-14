@@ -3,6 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import orjson
+from pydantic import ValidationError
+
 from cwmem.core import export as _export
 from cwmem.core import importer as _importer
 from cwmem.core import store as _store
@@ -14,6 +17,21 @@ from cwmem.output.json import to_json_bytes
 def default_plan_path(root: Path, workflow: str) -> Path:
     slug = workflow.replace(".", "-").replace("_", "-")
     return root / ".cwmem" / "plans" / f"{slug}-plan.json"
+
+
+class PlanArtifactError(Exception):
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_kind: str,
+        path: Path,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.error_kind = error_kind
+        self.path = path
+        self.details = {"path": str(path), **(details or {})}
 
 
 def plan_sync_export(
@@ -43,12 +61,61 @@ def plan_sync_import(
 
 
 def load_plan_artifact(path: Path) -> PlanArtifact:
-    payload = _store._json_load(path.read_text(encoding="utf-8"))
-    return PlanArtifact.model_validate(payload)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise PlanArtifactError(
+            "The supplied plan file does not exist.",
+            error_kind="missing",
+            path=path,
+        ) from exc
+    except UnicodeDecodeError as exc:
+        raise PlanArtifactError(
+            "The supplied plan file must be UTF-8 text.",
+            error_kind="encoding",
+            path=path,
+        ) from exc
+    except OSError as exc:
+        raise PlanArtifactError(
+            "The supplied plan file could not be read.",
+            error_kind="read",
+            path=path,
+            details={"os_error": type(exc).__name__},
+        ) from exc
+
+    if not raw.strip():
+        raise PlanArtifactError(
+            "The supplied plan file must not be empty or whitespace-only.",
+            error_kind="empty",
+            path=path,
+        )
+
+    try:
+        payload = _store._json_load(raw)
+    except orjson.JSONDecodeError as exc:
+        raise PlanArtifactError(
+            "The supplied plan file must contain valid JSON.",
+            error_kind="json",
+            path=path,
+        ) from exc
+
+    try:
+        return PlanArtifact.model_validate(payload)
+    except ValidationError as exc:
+        raise PlanArtifactError(
+            "The supplied plan file does not match the expected plan schema.",
+            error_kind="schema",
+            path=path,
+            details={"validation_errors": exc.errors(include_url=False)},
+        ) from exc
 
 
 def validate_plan(root: Path, plan_path: Path) -> ValidationResult:
     artifact = load_plan_artifact(plan_path.resolve())
+    return validate_loaded_plan(root, artifact)
+
+
+def validate_loaded_plan(root: Path, artifact: PlanArtifact) -> ValidationResult:
     issues: list[ValidationIssue] = []
 
     if artifact.workflow == "sync.export":

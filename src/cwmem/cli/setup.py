@@ -407,6 +407,11 @@ def build_guide_document() -> GuideDocument:
                 "retryable": True,
             },
             {
+                "code": "ERR_IO_READ_FAILED",
+                "message": "Filesystem or storage read failed.",
+                "retryable": False,
+            },
+            {
                 "code": "ERR_IO_WRITE_FAILED",
                 "message": "Filesystem or storage write failed.",
                 "retryable": True,
