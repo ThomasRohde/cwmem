@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cwmem import __version__
+
 
 def _assert_human_help(completed) -> None:
     assert completed.returncode == 0, completed
@@ -11,6 +13,7 @@ def _assert_human_help(completed) -> None:
     assert "│" in completed.stdout
     assert "Options" in completed.stdout
     assert "Commands" in completed.stdout
+    assert "--version" in completed.stdout
     assert "cwmem stores repository-scoped memory next to your codebase" in completed.stdout
     assert "Typical flow:" in completed.stdout
     assert "Return machine-readable CLI documentation." in completed.stdout
@@ -32,3 +35,10 @@ def test_no_args_print_human_help(run_cli, tmp_path: Path) -> None:
 def test_help_flag_prints_human_help(run_cli, tmp_path: Path) -> None:
     completed = run_cli(tmp_path, "--help")
     _assert_human_help(completed)
+
+
+def test_version_flag_prints_package_version(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "--version")
+    assert completed.returncode == 0, completed
+    assert completed.stdout.strip() == __version__
+    assert not completed.stderr.strip()

@@ -6,6 +6,7 @@ import click
 import typer
 from typer.main import get_command
 
+from cwmem import __version__
 from cwmem.cli import graph, maintenance, read, setup, sync, write
 from cwmem.output.envelope import (
     emit_internal_failure,
@@ -75,6 +76,17 @@ def _build_click_app() -> click.Command:
     if not isinstance(command, click.Group):  # pragma: no cover - defensive guard
         raise RuntimeError("cwmem top-level app must be a Click group")
     command.help = TOP_LEVEL_HELP
+    command.params.insert(
+        0,
+        click.Option(
+            ["-V", "--version"],
+            is_flag=True,
+            is_eager=True,
+            expose_value=False,
+            callback=_show_version,
+            help="Show package version and exit.",
+        ),
+    )
     guide = setup.build_guide_document()
     summaries = {
         item["name"]: _command_summary_from_catalog(item)
@@ -95,6 +107,14 @@ def _command_summary_from_catalog(item: dict[str, object]) -> str:
     if not bool(item["implemented"]):
         return f"{summary} [not yet implemented]"
     return summary
+
+
+def _show_version(ctx: click.Context, param: click.Parameter, value: bool) -> None:
+    _ = param
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo(__version__)
+    ctx.exit()
 
 
 if __name__ == "__main__":
