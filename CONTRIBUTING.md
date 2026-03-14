@@ -60,6 +60,6 @@ uv run cwmem verify
 2. Bump the package version in `src/cwmem/__init__.py`.
 3. Run the full local quality gate.
 4. Run `python -m pip install --force-reinstall dist/*.whl` after `uv build`.
-5. Create or publish a GitHub release to trigger `.github/workflows/publish.yml`.
+5. Commit the release and push to `master` to trigger `.github/workflows/publish.yml`.
 
 PyPI publishing is configured for GitHub Trusted Publisher with workflow `publish.yml` and environment `pypi`.

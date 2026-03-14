@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0
+
 ### Added
 
 - repo-native memory entry, event, graph, search, sync, and verification workflows

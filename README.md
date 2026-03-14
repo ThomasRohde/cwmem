@@ -71,4 +71,4 @@ uv build
 - Contributor guide: `CONTRIBUTING.md`
 - Agent expectations: `AGENTS.md`
 
-The publish workflow is designed for GitHub OIDC + PyPI Trusted Publisher with the `pypi` environment and `publish.yml` workflow binding.
+The publish workflow is designed for GitHub OIDC + PyPI Trusted Publisher with the `pypi` environment and publishes automatically on pushes to `master`.
