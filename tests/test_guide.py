@@ -1,0 +1,38 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from tests.helpers import (
+    assert_required_envelope_keys,
+    flatten_strings,
+    parse_envelope,
+)
+
+
+def test_guide_exposes_bootstrap_command_catalog(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "guide")
+    payload = parse_envelope(completed.stdout, completed.stderr, completed.returncode)
+
+    assert_required_envelope_keys(payload)
+    assert payload["command"] == "system.guide"
+
+    flattened = {item for item in flatten_strings(payload["result"])}
+    serialized_result = json.dumps(payload["result"], sort_keys=True)
+
+    assert "system.guide" in flattened or "system.guide" in serialized_result
+    assert "system.init" in flattened or "system.init" in serialized_result
+    assert "system.status" in flattened or "system.status" in serialized_result
+
+
+def test_guide_mentions_bootstrap_aliases_or_catalog_entries(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "guide")
+    payload = parse_envelope(completed.stdout, completed.stderr, completed.returncode)
+
+    serialized_result = json.dumps(payload["result"], sort_keys=True).lower()
+    for expected_fragment in ("guide", "init", "status"):
+        assert expected_fragment in serialized_result, (
+            f"`guide` result should mention `{expected_fragment}` in the command catalog.\n"
+            f"Result payload: {payload['result']!r}"
+        )
+
