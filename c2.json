@@ -1,0 +1,38 @@
+{
+    "command": "memory.add",
+    "errors": [],
+    "metrics": {
+        "duration_ms": 66
+    },
+    "ok": true,
+    "request_id": "req_20260314_155003_380fec99",
+    "result": {
+        "artifacts": {
+            "jsonl": "{\"author\":null,\"body\":\"Body 2\",\"created_at\":\"2026-03-14T15:50:03+00:00\",\"entity_refs\":[],\"fingerprint\":\"sha256:73972f4b0ba941762660be3e82ada64ecc6d149f14ee64595bb5c928acbbfda0\",\"internal_id\":\"01KKPGMNMS98W6HTFRWF024T81\",\"metadata\":{},\"provenance\":{},\"public_id\":\"mem-000008\",\"related_ids\":[],\"status\":\"active\",\"tags\":[],\"title\":\"WL-Concurrent 2\",\"type\":\"note\",\"updated_at\":\"2026-03-14T15:50:03+00:00\"}\n",
+            "markdown": "---\npublic_id: \"mem-000008\"\ninternal_id: \"01KKPGMNMS98W6HTFRWF024T81\"\ntitle: \"WL-Concurrent 2\"\ntype: \"note\"\nstatus: \"active\"\nauthor: \"\"\nfingerprint: \"sha256:73972f4b0ba941762660be3e82ada64ecc6d149f14ee64595bb5c928acbbfda0\"\ncreated_at: \"2026-03-14T15:50:03+00:00\"\nupdated_at: \"2026-03-14T15:50:03+00:00\"\ntags: []\nrelated_ids: []\nentity_refs: []\nprovenance: {}\nmetadata: {}\n---\n\nBody 2\n"
+        },
+        "entry": {
+            "author": null,
+            "body": "Body 2",
+            "created_at": "2026-03-14T15:50:03+00:00",
+            "entity_refs": [],
+            "fingerprint": "sha256:73972f4b0ba941762660be3e82ada64ecc6d149f14ee64595bb5c928acbbfda0",
+            "internal_id": "01KKPGMNMS98W6HTFRWF024T81",
+            "metadata": {},
+            "provenance": {},
+            "public_id": "mem-000008",
+            "related_ids": [],
+            "status": "active",
+            "tags": [],
+            "title": "WL-Concurrent 2",
+            "type": "note",
+            "updated_at": "2026-03-14T15:50:03+00:00"
+        }
+    },
+    "schema_version": "1.0",
+    "target": {
+        "identifier": null,
+        "resource": "entry"
+    },
+    "warnings": []
+}

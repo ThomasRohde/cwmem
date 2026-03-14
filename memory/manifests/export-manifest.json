@@ -1,0 +1,39 @@
+{
+  "counts": {
+    "edges": 71,
+    "entities": 6,
+    "entries": 12,
+    "events": 14,
+    "taxonomy_files": 3
+  },
+  "export_version": "1.0",
+  "files": {
+    "entries/entries.jsonl": "sha256:a7950cc5b490704fefabba5ce245827a37695088d8601399f5c324bb50e1751a",
+    "entries/mem-000001.md": "sha256:9a8b1524b518f472b7cba5ab7f3cb4ead5550c22f008369ca16f73f1fa44f780",
+    "entries/mem-000002.md": "sha256:6d287a1b480bd5d9dd1e2758ff77d14e1fcd69e2e8c77575e253e24f25ec0c05",
+    "entries/mem-000003.md": "sha256:9b7b0867cd5843cd60943cd8f2c8dca92bf7846a057dbdebc7dfd9964c179eae",
+    "entries/mem-000004.md": "sha256:769cd321bd90a7d945e6b150af2471052d4e3a0e69fee64e97352cc9e1e6da6d",
+    "entries/mem-000005.md": "sha256:082094076f1112e71bbcdb85e75333be4fd6490562cb2624a193a4b9beec0cb8",
+    "entries/mem-000006.md": "sha256:8b44e81a3c4fc37a0c0e5c73708f435fe0b2edaa2924d00040c690a894a72f51",
+    "entries/mem-000007.md": "sha256:c7963f796ec7603b2650dde6d7789c426b2fea2de90b0e1c2fb16c1e58ace696",
+    "entries/mem-000008.md": "sha256:7f569f3b41d2aa75652a16be7b30bcf6e7eaa9bfd5eb482b1ea6cfaf2683fb67",
+    "entries/mem-000009.md": "sha256:0893cb33df56a4d78149a3bf2eb796d859d8aa21f62631fb9d41179e5cdc970c",
+    "entries/mem-000010.md": "sha256:b7f702e473f5f93498da5717921b67d3e5842f62f40b3984669b895f9803b555",
+    "entries/mem-000011.md": "sha256:55bc71037928c5d961bbe29b2bb95d26943383ebc163311e69226ce5a612f1d8",
+    "entries/mem-000012.md": "sha256:b4473dc74a4165eb898b2c56e7b0b1d5bd2beaae45df4674ff4de7a2cae3c8ab",
+    "events/events.jsonl": "sha256:567806e30f2f98463baf894dcac48cc4748b7bf0b9e49dad94e74dd967db0514",
+    "graph/edges.jsonl": "sha256:bd534f159ab41d900f070ab8c3aca6058fd239a7c6b7414a377c50046741905d",
+    "graph/nodes.jsonl": "sha256:cedea306249e1d6e419d9eb11496fc91dd08b0f65dbdc44e92ac932bdcc3a7b9",
+    "manifests/export-manifest.json": "sha256:5ea17f81c76ad5252c3cee1965e1f4f5eaef825987a67b3b802f6f382aec593a",
+    "taxonomy/entity-types.json": "sha256:ec3699c7130db582be66cff935af23e7430a1ed26f06ab2595e7a01d71fdb73e",
+    "taxonomy/relation-types.json": "sha256:d5c86538a7bc8a5603f02c92050f9a729ecd3bd9b970b375bcad1eab6123f794",
+    "taxonomy/tags.json": "sha256:aba40e3aca2be1fcfb7d36607ecc0efe25b462543b519f0ff4a668a6ea9bb213"
+  },
+  "generated_at": "2026-03-14T16:16:36+00:00",
+  "model": {
+    "name": "minishlab/potion-base-8M",
+    "vector_dim": 256,
+    "version": "641201ef75e5f9f3ef6cdbf69436f8ce19f8e6ab"
+  },
+  "source_db_fingerprint": "sha256:0069049f305a6a1a8afb62116af8162660c3bd0560ee937ce02a97120dc81b9a"
+}
