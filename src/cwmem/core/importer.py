@@ -131,6 +131,10 @@ def load_import_snapshot(source_dir: Path) -> ImportedSnapshot:
     edges = _load_jsonl_records(resolved_dir / "graph" / "edges.jsonl", EdgeRecord)
     taxonomy = _load_taxonomy_payloads(resolved_dir)
 
+    _validate_unique_records(entries, "entry")
+    _validate_unique_records(events, "event")
+    _validate_unique_records(entities, "entity")
+    _validate_unique_records(edges, "edge")
     _validate_fingerprints(entries, events, entities, edges)
     _validate_counts(manifest, entries, events, entities, edges, taxonomy)
     _validate_snapshot_fingerprint(manifest, entries, events, entities, edges)
@@ -702,4 +706,30 @@ def _validate_known_resource(
                 "context": context,
             },
             suggested_action="Repair the artifact references and retry the import.",
+        )
+
+
+def _validate_unique_records(records: list[Any], resource_kind: str) -> None:
+    _validate_unique_field(records, resource_kind, "public_id")
+    _validate_unique_field(records, resource_kind, "internal_id")
+
+
+def _validate_unique_field(records: list[Any], resource_kind: str, field_name: str) -> None:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for record in records:
+        value = getattr(record, field_name)
+        if value in seen:
+            duplicates.add(value)
+            continue
+        seen.add(value)
+    if duplicates:
+        _store._raise_validation(
+            "Imported artifacts contain duplicate identifiers.",
+            details={
+                "resource_kind": resource_kind,
+                "field": field_name,
+                "duplicates": sorted(duplicates),
+            },
+            suggested_action="Deduplicate the artifact records and retry the import.",
         )

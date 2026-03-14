@@ -40,22 +40,22 @@ def _json_inline(value: Any) -> str:
     return orjson.dumps(value, option=orjson.OPT_SORT_KEYS).decode("utf-8")
 
 
-def _escape_quotes(value: str) -> str:
-    return value.replace('"', '\\"')
+def _yaml_double_quoted(value: str) -> str:
+    return orjson.dumps(value).decode("utf-8")
 
 
 def render_entry_markdown(entry: EntryRecord) -> str:
     front_matter = [
         "---",
-        f'public_id: "{entry.public_id}"',
-        f'internal_id: "{entry.internal_id}"',
-        f'title: "{_escape_quotes(entry.title)}"',
-        f'type: "{entry.type}"',
-        f'status: "{entry.status}"',
-        f'author: "{_escape_quotes(entry.author or "")}"',
-        f'fingerprint: "{entry.fingerprint}"',
-        f'created_at: "{entry.created_at}"',
-        f'updated_at: "{entry.updated_at}"',
+        f"public_id: {_yaml_double_quoted(entry.public_id)}",
+        f"internal_id: {_yaml_double_quoted(entry.internal_id)}",
+        f"title: {_yaml_double_quoted(entry.title)}",
+        f"type: {_yaml_double_quoted(entry.type)}",
+        f"status: {_yaml_double_quoted(entry.status)}",
+        f"author: {_yaml_double_quoted(entry.author or '')}",
+        f"fingerprint: {_yaml_double_quoted(entry.fingerprint)}",
+        f"created_at: {_yaml_double_quoted(entry.created_at)}",
+        f"updated_at: {_yaml_double_quoted(entry.updated_at)}",
         f"tags: {_json_inline(entry.tags)}",
         f"related_ids: {_json_inline(entry.related_ids)}",
         f"entity_refs: {_json_inline(entry.entity_refs)}",
