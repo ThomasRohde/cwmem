@@ -184,6 +184,16 @@ def _validate_no_empty_tags(tags: list[str]) -> list[str]:
     return tags
 
 
+def _validate_iso8601(value: str, *, field: str) -> str:
+    try:
+        _dt.fromisoformat(value)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            f"`{field}` must be a valid ISO 8601 date/datetime string, got: {value!r}"
+        ) from exc
+    return value
+
+
 class CreateEntryInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -199,8 +209,16 @@ class CreateEntryInput(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def check_tags(self) -> CreateEntryInput:
+    def check_fields(self) -> CreateEntryInput:
         _validate_no_empty_tags(self.tags)
+        if not self.title.strip():
+            raise ValueError(
+                "`title` must not be empty or whitespace-only. Provide a meaningful title."
+            )
+        if not self.body.strip():
+            raise ValueError(
+                "`body` must not be empty or whitespace-only. Provide meaningful content."
+            )
         return self
 
 
@@ -241,8 +259,10 @@ class CreateEventInput(BaseModel):
     occurred_at: str | None = None
 
     @model_validator(mode="after")
-    def check_tags(self) -> CreateEventInput:
+    def check_fields(self) -> CreateEventInput:
         _validate_no_empty_tags(self.tags)
+        if self.occurred_at is not None:
+            _validate_iso8601(self.occurred_at, field="--occurred-at")
         return self
 
 

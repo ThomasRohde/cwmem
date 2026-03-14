@@ -30,7 +30,7 @@ def _maybe_skip_not_implemented(completed, payload: dict[str, Any], args: tuple[
     errors = payload.get("errors", [])
     error_codes = {error.get("code") for error in errors if isinstance(error, dict)}
     is_placeholder_response = (
-        completed.returncode == 10
+        completed.returncode in (10, 90)
         and payload.get("ok") is False
         and error_codes == {"ERR_NOT_IMPLEMENTED"}
     )

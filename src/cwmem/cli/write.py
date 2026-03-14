@@ -15,6 +15,7 @@ from cwmem.core.export import render_entry_jsonl, render_entry_markdown, render_
 from cwmem.core.graph import add_edge, add_entity
 from cwmem.core.models import (
     CommandError,
+    CommandWarning,
     CreateEdgeInput,
     CreateEntityInput,
     CreateEntryInput,
@@ -26,7 +27,7 @@ from cwmem.core.models import (
 )
 from cwmem.core.safety import execute_mutation
 from cwmem.core.store import add_event, add_tags, create_entry, remove_tags, update_entry
-from cwmem.output.envelope import AppError, run_cli_command
+from cwmem.output.envelope import AppError, add_warning, run_cli_command
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -244,6 +245,7 @@ def add_command(  # noqa: B008
     related_ids: list[str] | None = typer.Option(None, '--related-id', '--relate'),
     entity_refs: list[str] | None = typer.Option(None, '--entity-ref', '--entity'),
     metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
+    body_option: str | None = typer.Option(None, '--body'),
     body_from_stdin: bool = typer.Option(
         False,
         '--body-from-stdin',
@@ -258,10 +260,16 @@ def add_command(  # noqa: B008
     root = (cwd or Path.cwd()).resolve()
 
     def handler() -> dict[str, Any]:
-        if body_from_stdin and body is not None:
+        body_sources = sum([
+            body_from_stdin,
+            body is not None,
+            body_option is not None,
+        ])
+        if body_sources > 1:
             raise AppError.from_command_error(
                 _validation_error(
-                    'Provide `body` either as inline text or via `--body-from-stdin`, not both.',
+                    'Provide `body` as inline text, `--body`, or `--body-from-stdin`, '
+                    'not both.',
                     details={'field': 'body', 'option': 'body-from-stdin'},
                 )
             )
@@ -278,6 +286,7 @@ def add_command(  # noqa: B008
                 related_ids,
                 entity_refs,
                 metadata_json,
+                body_option,
                 body,
             )
         )
@@ -286,14 +295,17 @@ def add_command(  # noqa: B008
             option_name='body-from-stdin',
             field_name='body',
         )
+        resolved_body: str | None
+        if body_from_stdin:
+            resolved_body = body_text
+        elif body_option is not None:
+            resolved_body = _resolve_text_input(body_option, root=root, field_name='body')
+        else:
+            resolved_body = _resolve_text_input(body, root=root, field_name='body')
         payload = _merge_payload(
             stdin_payload,
             title=title,
-            body=(
-                body_text
-                if body_from_stdin
-                else _resolve_text_input(body, root=root, field_name='body')
-            ),
+            body=resolved_body,
             type=entry_type,
             status=status,
             author=author,
@@ -696,6 +708,20 @@ def _tag_result(root: Path, mutation_input: TagMutationInput, *, add: bool) -> d
     resource, mutation = (
         add_tags(root, mutation_input) if add else remove_tags(root, mutation_input)
     )
+    if not mutation.applied:
+        tag_list = ", ".join(mutation_input.tags)
+        if add:
+            add_warning(CommandWarning(
+                code="WARN_TAG_ALREADY_PRESENT",
+                message=f"Tag(s) already present on resource: {tag_list}",
+                details={"tags": mutation_input.tags, "resource_id": mutation_input.resource_id},
+            ))
+        else:
+            add_warning(CommandWarning(
+                code="WARN_TAG_NOT_FOUND",
+                message=f"Tag(s) not found on resource: {tag_list}",
+                details={"tags": mutation_input.tags, "resource_id": mutation_input.resource_id},
+            ))
     return _build_resource_payload(resource, applied=mutation.applied)
 
 

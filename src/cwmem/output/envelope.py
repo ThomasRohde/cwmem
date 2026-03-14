@@ -63,8 +63,10 @@ def add_warning(warning: CommandWarning) -> None:
 
 
 def exit_code_for_error(code: str) -> int:
-    if code.startswith("ERR_VALIDATION_") or code == "ERR_NOT_IMPLEMENTED":
+    if code.startswith("ERR_VALIDATION_"):
         return EXIT_CODES["validation"]
+    if code == "ERR_NOT_IMPLEMENTED":
+        return EXIT_CODES["internal"]
     if code.startswith("ERR_AUTH_"):
         return EXIT_CODES["auth"]
     if code.startswith("ERR_CONFLICT_") or code == "ERR_LOCK_HELD":

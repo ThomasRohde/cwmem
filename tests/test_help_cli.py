@@ -52,7 +52,7 @@ def test_deprecate_placeholder_accepts_resource_id_and_returns_not_implemented(
     completed = run_cli(tmp_path, "deprecate", "mem-000001")
     payload = parse_envelope_any_exit(completed.stdout, completed.stderr)
 
-    assert completed.returncode == 10, completed
+    assert completed.returncode == 90, completed
     assert payload["ok"] is False, payload
     assert payload["command"] == "memory.deprecate"
     assert [error["code"] for error in payload["errors"]] == ["ERR_NOT_IMPLEMENTED"]
