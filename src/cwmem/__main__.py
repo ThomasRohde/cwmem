@@ -23,7 +23,8 @@ Typical flow:
   1. Run `cwmem init` to create the runtime database and tracked memory files.
   2. Capture context with `cwmem add`, `cwmem event-add`, or `cwmem link`.
   3. Retrieve it later with `cwmem search`, `cwmem related`, or `cwmem get`.
-  4. Keep checked-in artifacts aligned with `cwmem sync export` / `sync import`.
+  4. Refresh derived state with `cwmem build`, then keep checked-in artifacts aligned
+     with `cwmem sync export` and `cwmem verify`.
 
 For machine-readable schemas, workflows, and error contracts, run `cwmem guide`."""
 
@@ -45,8 +46,10 @@ maintenance.register(app)
 def main() -> None:
     """Run the CLI with envelope-safe error handling."""
     command = _build_click_app()
+    raw_args = sys.argv[1:]
     try:
-        command.main(args=sys.argv[1:], prog_name="cwmem", standalone_mode=False)
+        _fail_on_duplicate_scalar_options(command, raw_args)
+        command.main(args=raw_args, prog_name="cwmem", standalone_mode=False)
     except click.exceptions.NoArgsIsHelpError as exc:
         try:
             command.main(args=["--help"], prog_name="cwmem", standalone_mode=False)
@@ -84,7 +87,7 @@ def _build_click_app() -> click.Command:
     command.params.insert(
         0,
         click.Option(
-            ["-V", "--version"],
+            ["-v", "-V", "--version"],
             is_flag=True,
             is_eager=True,
             expose_value=False,
@@ -93,27 +96,34 @@ def _build_click_app() -> click.Command:
         ),
     )
     guide = setup.build_guide_document()
-    summaries = {
-        item["name"]: _command_summary_from_catalog(item)
-        for item in guide.command_catalog
-        if " " not in item["name"]
+    command_catalog = {
+        str(item["name"]): item for item in guide.command_catalog if " " not in str(item["name"])
     }
-    summaries["sync"] = "Export or import checked-in collaboration artifacts."
+    command_catalog["sync"] = {"summary": "Export or import checked-in collaboration artifacts."}
     for name, subcommand in command.commands.items():
-        summary = summaries.get(name)
-        if summary:
-            subcommand.help = summary
-            subcommand.short_help = summary
-    if not sys.stdout.isatty():
-        _disable_rich_help(command)
+        item = command_catalog.get(name)
+        if item is None:
+            continue
+        subcommand.help = _command_help_from_catalog(item)
+        subcommand.short_help = _command_summary_from_catalog(item)
+        if bool(item.get("hidden", False)):
+            subcommand.hidden = True
+    _disable_rich_help(command)
     return command
 
 
 def _command_summary_from_catalog(item: dict[str, object]) -> str:
     summary = str(item["summary"])
-    if not bool(item["implemented"]):
+    if not bool(item.get("implemented", True)):
         return f"Not yet implemented: {summary}"
     return summary
+
+
+def _command_help_from_catalog(item: dict[str, object]) -> str:
+    help_text = item.get("help")
+    if isinstance(help_text, str) and help_text:
+        return help_text
+    return _command_summary_from_catalog(item)
 
 
 def _disable_rich_help(command: click.Command) -> None:
@@ -130,6 +140,93 @@ def _show_version(ctx: click.Context, param: click.Parameter, value: bool) -> No
         return
     click.echo(__version__)
     ctx.exit()
+
+
+def _fail_on_duplicate_scalar_options(command: click.Command, args: list[str]) -> None:
+    leaf_command, option_start_index = _resolve_leaf_command(command, args)
+    duplicates = _find_duplicate_scalar_options(leaf_command, args[option_start_index:])
+    if not duplicates:
+        return
+    formatted = ", ".join(f"`{name}`" for name in duplicates)
+    raise click.UsageError(
+        f"Duplicate scalar options are not allowed: {formatted}. "
+        "Provide each option at most once."
+    )
+
+
+def _resolve_leaf_command(command: click.Command, args: list[str]) -> tuple[click.Command, int]:
+    current = command
+    index = 0
+    while isinstance(current, click.Group):
+        next_command: click.Command | None = None
+        while index < len(args):
+            token = args[index]
+            if token == "--":
+                return current, index + 1
+            if not token.startswith("-") and token in current.commands:
+                next_command = current.commands[token]
+                break
+            index += 1
+        if next_command is None:
+            return current, len(args)
+        current = next_command
+        index += 1
+    return current, index
+
+
+def _find_duplicate_scalar_options(command: click.Command, args: list[str]) -> list[str]:
+    option_lookup: dict[str, click.Option] = {}
+    for param in command.params:
+        if not isinstance(param, click.Option):
+            continue
+        for opt in (*param.opts, *param.secondary_opts):
+            option_lookup[opt] = param
+
+    duplicates: list[str] = []
+    seen: set[int] = set()
+    pending_values = 0
+
+    for token in args:
+        if pending_values > 0:
+            pending_values -= 1
+            continue
+        if token == "--":
+            break
+
+        attached_value = token.startswith("--") and "=" in token
+        option_token = token.split("=", 1)[0] if attached_value else token
+        option = option_lookup.get(option_token)
+        if option is None:
+            continue
+
+        if _is_scalar_option(option):
+            option_id = id(option)
+            canonical_name = _canonical_option_name(option)
+            if option_id in seen:
+                if canonical_name not in duplicates:
+                    duplicates.append(canonical_name)
+            else:
+                seen.add(option_id)
+
+        if _option_takes_value(option) and not attached_value:
+            pending_values = option.nargs
+
+    return duplicates
+
+
+def _is_scalar_option(option: click.Option) -> bool:
+    return not option.multiple and not getattr(option, "count", False) and not option.is_flag
+
+
+def _option_takes_value(option: click.Option) -> bool:
+    return not option.is_flag and option.nargs > 0
+
+
+def _canonical_option_name(option: click.Option) -> str:
+    for opt in option.opts:
+        if opt.startswith("--"):
+            return opt
+    return option.opts[0]
 
 
 if __name__ == "__main__":

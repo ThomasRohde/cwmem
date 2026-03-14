@@ -32,7 +32,7 @@ def _build_query(model_type: type[ModelT], payload: dict[str, object]) -> ModelT
                 message="Invalid command input.",
                 retryable=False,
                 suggested_action="Review the command arguments and retry.",
-                details={"validation_errors": exc.errors(include_url=False)},
+                details={"validation_errors": exc.errors(include_url=False, include_context=False)},
             )
         ) from exc
 

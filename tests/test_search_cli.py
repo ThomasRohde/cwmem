@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from tests.phase2_helpers import (
     extract_entry,
     extract_event,
     init_repo,
+    run_any,
     run_ok,
 )
 from tests.phase3_helpers import extract_search_hits, find_search_hit, search_hit_resource_id
@@ -251,3 +253,24 @@ def test_search_semantic_only_returns_hits_after_build(run_cli, tmp_path: Path) 
     explanation = hit["explanation"]
     assert isinstance(explanation, dict), hit
     assert isinstance(explanation.get("semantic_rank"), int), explanation
+
+
+def test_search_rejects_conflicting_mode_flags(run_cli, tmp_path: Path) -> None:
+    init_repo(run_cli, tmp_path)
+
+    completed, payload = run_any(
+        run_cli,
+        tmp_path,
+        "search",
+        "qa",
+        "--lexical-only",
+        "--semantic-only",
+    )
+    assert completed.returncode == 10, completed
+    assert payload["ok"] is False, payload
+    assert payload["command"] == "memory.search"
+    assert [error["code"] for error in payload["errors"]] == ["ERR_VALIDATION_INPUT"]
+
+    serialized = json.dumps(payload, sort_keys=True).lower()
+    assert "lexical-only" in serialized
+    assert "semantic-only" in serialized

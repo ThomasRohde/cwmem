@@ -167,7 +167,24 @@ def build_guide_document() -> GuideDocument:
             "mutating": True,
             "summary": "Deprecate a memory item while preserving history.",
             "aliases": [],
-            "arguments": [],
+            "arguments": [
+                GuideFlag(
+                    name="[RESOURCE_ID]",
+                    required=False,
+                    kind="identifier",
+                    description=(
+                        "Optional placeholder target accepted so direct calls fail "
+                        "gracefully while the real command is unimplemented."
+                    ),
+                )
+            ],
+            "help": (
+                "Deprecate a memory item while preserving history.\n\n"
+                "Not yet implemented. This placeholder is intentionally hidden from the "
+                "main help surface until the real deprecate workflow exists. Direct calls "
+                "still return a structured `ERR_NOT_IMPLEMENTED` envelope."
+            ),
+            "hidden": True,
             "output_schema": "Envelope",
         },
         {
@@ -257,7 +274,28 @@ def build_guide_document() -> GuideDocument:
             "mutating": True,
             "summary": "Generate a reviewable mutation plan.",
             "aliases": [],
-            "arguments": [],
+            "arguments": [
+                GuideFlag(
+                    name="WORKFLOW",
+                    required=True,
+                    kind="enum",
+                    description=(
+                        "Valid values: `sync-export` or `sync-import`. Conceptual guide "
+                        "workflows such as `bootstrap`, `safe-mutation`, and "
+                        "`explicit-sync` describe sequences and are not direct `plan` "
+                        "arguments."
+                    ),
+                )
+            ],
+            "help": (
+                "Generate a reviewable mutation plan.\n\n"
+                "Valid WORKFLOW values:\n"
+                "  sync-export  Create a reviewable export plan.\n"
+                "  sync-import  Create a reviewable import plan.\n\n"
+                "`cwmem guide` also lists conceptual workflows such as `bootstrap`, "
+                "`safe-mutation`, and `explicit-sync`; those describe sequences, not "
+                "direct `plan` arguments."
+            ),
             "output_schema": "Envelope",
         },
         {
@@ -288,6 +326,12 @@ def build_guide_document() -> GuideDocument:
             "summary": "Verify runtime and exported state are aligned.",
             "aliases": [],
             "arguments": [],
+            "help": (
+                "Verify runtime and exported state are aligned.\n\n"
+                "After runtime mutations, run `cwmem build` and `cwmem sync export` "
+                "before `cwmem verify` so derived indexes and tracked artifacts are "
+                "current."
+            ),
             "output_schema": "Envelope",
         },
     ]
@@ -438,16 +482,38 @@ def build_guide_document() -> GuideDocument:
                     "Discover the CLI, create local scaffolding, then inspect "
                     "the initialized repository state."
                 ),
+                kind="sequence",
+                accepted_by_plan=False,
             ),
             GuideWorkflow(
                 name="safe-mutation",
                 steps=["plan", "validate", "apply", "verify"],
                 description="High-risk workflows must stay reviewable and drift-aware.",
+                kind="sequence",
+                accepted_by_plan=False,
             ),
             GuideWorkflow(
                 name="explicit-sync",
                 steps=["sync export", "sync import"],
                 description="Synchronization is explicit by default rather than automatic.",
+                kind="sequence",
+                accepted_by_plan=False,
+            ),
+            GuideWorkflow(
+                name="sync-export",
+                steps=["plan sync-export", "validate", "apply", "verify"],
+                description="Create, review, and apply an export plan.",
+                kind="plan",
+                accepted_by_plan=True,
+                plan_value="sync-export",
+            ),
+            GuideWorkflow(
+                name="sync-import",
+                steps=["plan sync-import", "validate", "apply", "verify"],
+                description="Create, review, and apply an import plan.",
+                kind="plan",
+                accepted_by_plan=True,
+                plan_value="sync-import",
             ),
         ],
         concurrency_policy={
@@ -662,6 +728,11 @@ def register(app: typer.Typer) -> None:
     app.command("status")(status_command)
 
 
-def placeholder_command(command_id: str, human_name: str) -> None:
-    raise AppError.from_command_error(not_implemented_error(command_id, human_name))
+def placeholder_command(
+    command_id: str, human_name: str, *, details: dict[str, Any] | None = None
+) -> None:
+    error = not_implemented_error(command_id, human_name)
+    if details:
+        error.details.update(details)
+    raise AppError.from_command_error(error)
 

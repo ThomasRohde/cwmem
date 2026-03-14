@@ -39,7 +39,11 @@ def graph_command(  # noqa: B008
                     message="Invalid command input.",
                     retryable=False,
                     suggested_action="Review the command arguments and retry.",
-                    details={"validation_errors": exc.errors(include_url=False)},
+                    details={
+                        "validation_errors": exc.errors(
+                            include_url=False, include_context=False
+                        )
+                    },
                 )
             ) from exc
         neighborhood = graph_show(root, query)

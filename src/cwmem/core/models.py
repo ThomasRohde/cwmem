@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Target(BaseModel):
@@ -53,6 +53,9 @@ class GuideWorkflow(BaseModel):
     name: str
     steps: list[str]
     description: str
+    kind: Literal["sequence", "plan"] = "sequence"
+    accepted_by_plan: bool = False
+    plan_value: str | None = None
 
 
 class GuideDocument(BaseModel):
@@ -288,6 +291,15 @@ class SearchQuery(BaseModel):
     semantic_only: bool = False
     expand_graph: bool = False
     limit: int = Field(default=20, ge=1, le=200)
+
+    @model_validator(mode="after")
+    def validate_search_modes(self) -> SearchQuery:
+        if self.lexical_only and self.semantic_only:
+            raise ValueError(
+                "`--lexical-only` and `--semantic-only` cannot be used together. "
+                "Choose one mode or omit both for hybrid search."
+            )
+        return self
 
 
 class SearchHitExplanation(BaseModel):

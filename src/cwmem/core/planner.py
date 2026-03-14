@@ -106,7 +106,7 @@ def load_plan_artifact(path: Path) -> PlanArtifact:
             "The supplied plan file does not match the expected plan schema.",
             error_kind="schema",
             path=path,
-            details={"validation_errors": exc.errors(include_url=False)},
+            details={"validation_errors": exc.errors(include_url=False, include_context=False)},
         ) from exc
 
 

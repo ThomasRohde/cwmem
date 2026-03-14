@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from cwmem import __version__
+from tests.phase2_helpers import parse_envelope_any_exit
 
 
 def _assert_human_help(completed) -> None:
@@ -18,8 +19,7 @@ def _assert_human_help(completed) -> None:
     assert "Create runtime and tracked repository scaffolding." in completed.stdout
     assert "Run lexical and semantic retrieval over memory content." in completed.stdout
     assert "Export or import checked-in collaboration artifacts." in completed.stdout
-    assert "deprecate" in completed.stdout.lower()
-    assert "not yet implemented" in completed.stdout.lower()
+    assert "deprecate" not in completed.stdout.lower()
     assert "Ôö" not in completed.stdout
     try:
         json.loads(completed.stdout)
@@ -46,8 +46,51 @@ def test_deprecate_help_calls_out_not_yet_implemented(run_cli, tmp_path: Path) -
     assert "Ôö" not in completed.stdout
 
 
-def test_version_flag_prints_package_version(run_cli, tmp_path: Path) -> None:
-    completed = run_cli(tmp_path, "--version")
+def test_deprecate_placeholder_accepts_resource_id_and_returns_not_implemented(
+    run_cli, tmp_path: Path
+) -> None:
+    completed = run_cli(tmp_path, "deprecate", "mem-000001")
+    payload = parse_envelope_any_exit(completed.stdout, completed.stderr)
+
+    assert completed.returncode == 10, completed
+    assert payload["ok"] is False, payload
+    assert payload["command"] == "memory.deprecate"
+    assert [error["code"] for error in payload["errors"]] == ["ERR_NOT_IMPLEMENTED"]
+    serialized = json.dumps(payload, sort_keys=True).lower()
+    assert "mem-000001" in serialized
+    assert "not implemented" in serialized
+
+
+def test_subcommand_help_uses_readable_option_spacing(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "add", "--help")
     assert completed.returncode == 0, completed
-    assert completed.stdout.strip() == __version__
-    assert not completed.stderr.strip()
+    assert "--title TEXT" in completed.stdout
+    assert "--cwd PATH" in completed.stdout
+    assert "--titleTEXT" not in completed.stdout
+    assert "--cwdPATH" not in completed.stdout
+    assert "--help-h" not in completed.stdout
+
+
+def test_plan_help_lists_supported_workflows(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "plan", "--help")
+    assert completed.returncode == 0, completed
+    lowered = completed.stdout.lower()
+    assert "sync-export" in lowered
+    assert "sync-import" in lowered
+    assert "bootstrap" in lowered
+
+
+def test_verify_help_mentions_build_and_sync_export(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "verify", "--help")
+    assert completed.returncode == 0, completed
+    lowered = completed.stdout.lower()
+    assert "cwmem build" in lowered
+    assert "cwmem sync export" in lowered
+
+
+def test_version_flags_print_package_version(run_cli, tmp_path: Path) -> None:
+    for flag in ("--version", "-V", "-v"):
+        completed = run_cli(tmp_path, flag)
+        assert completed.returncode == 0, completed
+        assert completed.stdout.strip() == __version__
+        assert not completed.stderr.strip()

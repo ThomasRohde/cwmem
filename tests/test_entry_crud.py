@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from tests.phase2_helpers import (
@@ -216,4 +218,34 @@ def test_add_rejects_body_from_stdin_when_inline_body_is_also_supplied(
     serialized = json.dumps(payload, sort_keys=True).lower()
     assert "body-from-stdin" in serialized
     assert "not both" in serialized
+
+
+def test_add_rejects_binary_stdin_with_validation_error(
+    run_cli, cli_env: dict[str, str], tmp_path: Path
+) -> None:
+    init_repo(run_cli, tmp_path)
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "cwmem", "add", "--title", "binary stdin", "--body-from-stdin"],
+        cwd=tmp_path,
+        env=cli_env,
+        capture_output=True,
+        input=bytes(range(256)),
+        text=False,
+        check=False,
+        timeout=30,
+    )
+    stdout = completed.stdout.decode("utf-8")
+    stderr = completed.stderr.decode("utf-8", errors="replace")
+    payload = parse_envelope_any_exit(stdout, stderr)
+
+    assert completed.returncode == 10, completed
+    assert payload["ok"] is False, payload
+    assert payload["command"] == "memory.add"
+    assert [error["code"] for error in payload["errors"]] == ["ERR_VALIDATION_INPUT"]
+
+    serialized = json.dumps(payload, sort_keys=True).lower()
+    assert "stdin" in serialized
+    assert "utf-8" in serialized or "text" in serialized
+    assert "err_internal_unhandled" not in serialized
 

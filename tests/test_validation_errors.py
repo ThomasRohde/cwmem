@@ -82,3 +82,25 @@ def test_validate_and_apply_reject_non_utf8_and_schema_invalid_plan_files(
             serialized = json.dumps(payload, sort_keys=True).lower()
             assert expected_token in serialized, payload
             assert "err_internal_unhandled" not in serialized, payload
+
+
+def test_duplicate_scalar_options_emit_validation_envelopes(run_cli, tmp_path: Path) -> None:
+    completed, payload = run_any(
+        run_cli,
+        tmp_path,
+        "add",
+        "--title",
+        "first",
+        "--title",
+        "second",
+        "Duplicate title body",
+    )
+
+    assert completed.returncode == 10, completed
+    assert payload["ok"] is False, payload
+    assert payload["command"] == "system.cli"
+    assert [error["code"] for error in payload["errors"]] == ["ERR_VALIDATION_INPUT"]
+
+    serialized = json.dumps(payload, sort_keys=True).lower()
+    assert "duplicate" in serialized
+    assert "--title" in serialized

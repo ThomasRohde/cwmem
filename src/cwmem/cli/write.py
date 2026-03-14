@@ -45,7 +45,16 @@ def _should_read_stdin(*values: object) -> bool:
 def _parse_stdin_json(*, enabled: bool) -> dict[str, Any]:
     if not enabled or sys.stdin.isatty():
         return {}
-    raw = sys.stdin.read().strip()
+    try:
+        raw = sys.stdin.read()
+    except UnicodeDecodeError as exc:
+        raise AppError.from_command_error(
+            _validation_error(
+                'Standard input must be valid UTF-8 text containing a JSON object.',
+                details={'source': 'stdin'},
+            )
+        ) from exc
+    raw = raw.strip()
     if not raw:
         return {}
     try:
@@ -77,7 +86,15 @@ def _read_stdin_text(*, enabled: bool, option_name: str, field_name: str) -> str
                 details={'source': 'stdin', 'option': option_name, 'field': field_name},
             )
         )
-    return sys.stdin.read()
+    try:
+        return sys.stdin.read()
+    except UnicodeDecodeError as exc:
+        raise AppError.from_command_error(
+            _validation_error(
+                f'Standard input must be valid UTF-8 text when using `--{option_name}`.',
+                details={'source': 'stdin', 'option': option_name, 'field': field_name},
+            )
+        ) from exc
 
 
 def _merge_payload(base: dict[str, Any], **overrides: Any) -> dict[str, Any]:
@@ -117,7 +134,9 @@ def _build_model(model_type: type[ModelT], payload: dict[str, Any]) -> ModelT:  
         raise AppError.from_command_error(
             _validation_error(
                 'Invalid command input.',
-                details={'validation_errors': exc.errors(include_url=False)},
+                details={
+                    'validation_errors': exc.errors(include_url=False, include_context=False)
+                },
             )
         ) from exc
 
@@ -687,10 +706,22 @@ def _make_placeholder(command_id: str, human_name: str):
     return command
 
 
+def deprecate_command(resource_id: str | None = typer.Argument(None)) -> None:
+    details = {'resource_id': resource_id} if resource_id is not None else None
+    target_resource = 'resource' if resource_id is not None else 'repository'
+    raise SystemExit(
+        run_cli_command(
+            'memory.deprecate',
+            target_resource,
+            lambda: placeholder_command('memory.deprecate', 'deprecate', details=details),
+        )
+    )
+
+
 def register(app: typer.Typer) -> None:
     app.command('add')(add_command)
     app.command('update')(update_command)
-    app.command('deprecate')(_make_placeholder('memory.deprecate', 'deprecate'))
+    app.command('deprecate')(deprecate_command)
     app.command('link')(link_command)
     app.command('tag-add')(tag_add_command)
     app.command('tag-remove')(tag_remove_command)

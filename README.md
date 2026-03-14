@@ -67,7 +67,8 @@ cwmem list
 cwmem entity-add --entity-type system --name "cwmem"
 cwmem link mem-000001 ent-000001 --relation references
 
-# Export tracked artifacts and verify consistency
+# Refresh derived state when needed, then export and verify consistency
+cwmem build
 cwmem sync export
 cwmem sync export --check
 cwmem verify
@@ -90,7 +91,8 @@ Get-Content .\note.txt -Raw | `
 # Read JSON envelopes naturally in PowerShell
 cwmem search "repo-native memory" | ConvertFrom-Json
 
-# Export and verify
+# Refresh derived state when needed, then export and verify
+cwmem build
 cwmem sync export
 cwmem verify
 ```
@@ -125,9 +127,13 @@ cwmem add --title "Architecture decision" --type decision "Capture the rationale
 cwmem event-add --event-type milestone "MVP shipped"
 cwmem search "architecture decision"
 cwmem related mem-000001
+cwmem build
 cwmem sync export
 cwmem verify
 ```
+
+After mutations that affect derived search state or tracked artifacts, the common
+safe path is `cwmem build`, then `cwmem sync export`, then `cwmem verify`.
 
 For higher-risk workflows that should be reviewed before mutating state:
 

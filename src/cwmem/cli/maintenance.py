@@ -18,6 +18,15 @@ from cwmem.output.envelope import (
     validation_error,
 )
 
+PLAN_WORKFLOW_ALIASES = {
+    "sync-export": "sync-export",
+    "export": "sync-export",
+    "sync-import": "sync-import",
+    "import": "sync-import",
+}
+SUPPORTED_PLAN_WORKFLOWS = tuple(sorted({value for value in PLAN_WORKFLOW_ALIASES.values()}))
+CONCEPTUAL_GUIDE_WORKFLOWS = ("bootstrap", "safe-mutation", "explicit-sync")
+
 
 def build_command(
     dry_run: bool = typer.Option(False, "--dry-run"),
@@ -80,7 +89,14 @@ def validate_command(
 
 
 def plan_command(
-    workflow: str = typer.Argument(...),
+    workflow: str = typer.Argument(
+        ...,
+        metavar="WORKFLOW",
+        help=(
+            "Valid values: sync-export or sync-import. Conceptual guide workflows such as "
+            "bootstrap are sequences, not direct `plan` arguments."
+        ),
+    ),
     output_dir: Path | None = typer.Option(None, "--output-dir"),
     input_dir: Path | None = typer.Option(None, "--input-dir"),
     check: bool = typer.Option(False, "--check"),
@@ -108,8 +124,17 @@ def plan_command(
             )
         else:
             raise validation_error(
-                "Unsupported workflow. Use `sync-export` or `sync-import`.",
-                details={"workflow": workflow, "normalized_workflow": normalized_workflow},
+                (
+                    "Unsupported workflow. Use `sync-export` or `sync-import`. "
+                    "Conceptual guide workflows such as `bootstrap`, `safe-mutation`, and "
+                    "`explicit-sync` describe sequences and are not direct `plan` arguments."
+                ),
+                details={
+                    "workflow": workflow,
+                    "normalized_workflow": normalized_workflow,
+                    "supported_workflows": list(SUPPORTED_PLAN_WORKFLOWS),
+                    "conceptual_workflows": list(CONCEPTUAL_GUIDE_WORKFLOWS),
+                },
             )
         return artifact.model_dump(mode="json")
 
@@ -274,10 +299,4 @@ def _import_apply(root: Path, *, source_dir: Path, fail_on_drift: bool) -> dict[
 
 def _normalize_workflow_name(workflow: str) -> str:
     normalized = workflow.strip().lower().replace("_", "-").replace(".", "-").replace(" ", "-")
-    aliases = {
-        "sync-export": "sync-export",
-        "export": "sync-export",
-        "sync-import": "sync-import",
-        "import": "sync-import",
-    }
-    return aliases.get(normalized, normalized)
+    return PLAN_WORKFLOW_ALIASES.get(normalized, normalized)
