@@ -380,6 +380,59 @@ class ValidationResult(BaseModel):
     issues: list[ValidationIssue] = Field(default_factory=list)
 
 
+class LockInfo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pid: int
+    hostname: str
+    acquired_at: str
+    command: str
+    request_id: str
+
+
+class IdempotencyRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: str
+    command_id: str
+    request_hash: str
+    request_id: str
+    resource_ids: list[str] = Field(default_factory=list)
+    response: dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+
+
+class DryRunSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    counts: dict[str, int] = Field(default_factory=dict)
+    impacted_resources: list[str] = Field(default_factory=list)
+
+
+class PlanArtifact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = "1.0"
+    workflow: str
+    command_id: str
+    created_at: str
+    plan_path: str
+    request_hash: str
+    options: dict[str, Any] = Field(default_factory=dict)
+    summary: dict[str, int] = Field(default_factory=dict)
+    impacted_resources: list[str] = Field(default_factory=list)
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class VerificationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    issues: list[ValidationIssue] = Field(default_factory=list)
+    checks: dict[str, bool] = Field(default_factory=dict)
+    stats: StatsResult | None = None
+
+
 class ExportFileRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

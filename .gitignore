@@ -1,6 +1,8 @@
 .cwmem/memory.sqlite
 .cwmem/memory.sqlite.lock
+.cwmem/memory.sqlite.lock.json
 .cwmem/logs/
+.cwmem/plans/
 .venv/
 venv/
 build/

@@ -5,6 +5,7 @@ from pathlib import Path
 REQUIRED_DIRECTORIES: tuple[str, ...] = (
     ".cwmem",
     ".cwmem/logs",
+    ".cwmem/plans",
     "memory/entries",
     "memory/events",
     "memory/graph",
@@ -45,6 +46,7 @@ TAXONOMY_SEEDS: dict[str, dict[str, object]] = {
             "influences",
             "mentions",
             "owned_by",
+            "references",
             "related_to",
             "supersedes",
             "supports",

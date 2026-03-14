@@ -243,7 +243,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "build",
             "canonical_id": "system.build",
-            "implemented": False,
+            "implemented": True,
             "mutating": True,
             "summary": "Build or rebuild derived runtime surfaces.",
             "aliases": [],
@@ -253,7 +253,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "plan",
             "canonical_id": "system.plan",
-            "implemented": False,
+            "implemented": True,
             "mutating": True,
             "summary": "Generate a reviewable mutation plan.",
             "aliases": [],
@@ -263,7 +263,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "validate",
             "canonical_id": "system.validate",
-            "implemented": False,
+            "implemented": True,
             "mutating": False,
             "summary": "Validate a plan or repository state before apply.",
             "aliases": [],
@@ -273,7 +273,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "apply",
             "canonical_id": "system.apply",
-            "implemented": False,
+            "implemented": True,
             "mutating": True,
             "summary": "Apply a validated plan with drift protection.",
             "aliases": [],
@@ -283,7 +283,7 @@ def build_guide_document() -> GuideDocument:
         {
             "name": "verify",
             "canonical_id": "system.verify",
-            "implemented": False,
+            "implemented": True,
             "mutating": False,
             "summary": "Verify runtime and exported state are aligned.",
             "aliases": [],
@@ -450,10 +450,10 @@ def build_guide_document() -> GuideDocument:
             "writes_parallel": False,
             "lock_path": ".cwmem/memory.sqlite.lock",
             "write_policy": (
-                "Planned policy: mutating commands will serialize through an "
-                "exclusive sidecar lock."
+                "Mutating commands serialize through an exclusive sidecar lock. "
+                "Dry-run mutations may take the lock transiently for safe evaluation."
             ),
-            "enforcement_status": "planned for a later phase; not enforced by Phase 1 commands",
+            "enforcement_status": "enforced for mutating commands",
             "batch_guidance": (
                 "Batch workflows may parallelize read phases but must serialize "
                 "apply phases."
@@ -463,6 +463,7 @@ def build_guide_document() -> GuideDocument:
             "runtime": [
                 ".cwmem/",
                 ".cwmem/logs/",
+                ".cwmem/plans/",
                 ".cwmem/memory.sqlite",
                 ".cwmem/memory.sqlite.lock",
             ],
@@ -618,6 +619,7 @@ def _build_status_result(root: Path) -> StatusResult:
         paths={
             "runtime_dir": relpath(root / ".cwmem", root),
             "log_dir": relpath(root / ".cwmem" / "logs", root),
+            "plan_dir": relpath(root / ".cwmem" / "plans", root),
             "memory_dir": relpath(root / "memory", root),
             "taxonomy_dir": relpath(root / "memory" / "taxonomy", root),
             "model_dir": relpath(root / "models" / "model2vec", root),

@@ -23,6 +23,7 @@ from cwmem.core.models import (
     TagMutationInput,
     UpdateEntryInput,
 )
+from cwmem.core.safety import execute_mutation
 from cwmem.core.store import add_event, add_tags, create_entry, remove_tags, update_entry
 from cwmem.output.envelope import AppError, run_cli_command
 
@@ -188,6 +189,9 @@ def add_command(  # noqa: B008
     entity_refs: list[str] | None = typer.Option(None, '--entity-ref', '--entity'),
     metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
     body: str | None = typer.Argument(None),
+    dry_run: bool = typer.Option(False, '--dry-run'),
+    idempotency_key: str | None = typer.Option(None, '--idempotency-key'),
+    wait_lock: float = typer.Option(0.0, '--wait-lock', min=0.0),
     cwd: Path | None = typer.Option(None, '--cwd'),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
@@ -221,14 +225,23 @@ def add_command(  # noqa: B008
             metadata=_parse_json_option(metadata_json, field_name='metadata_json'),
         )
         entry_input = _build_model(CreateEntryInput, payload)
-        entry = create_entry(root, entry_input)
-        return {
-            'entry': entry,
-            'artifacts': {
-                'markdown': render_entry_markdown(entry),
-                'jsonl': render_entry_jsonl(entry),
+        return execute_mutation(
+            root=root,
+            command_id='memory.add',
+            request_payload={
+                'command': 'memory.add',
+                'idempotency_key': idempotency_key,
+                'input': entry_input.model_dump(mode='json'),
             },
-        }
+            apply_handler=lambda apply_root: _create_entry_result(apply_root, entry_input),
+            summary_builder=lambda _result: {
+                'entries_to_create': 1,
+                'events_to_create': 1,
+            },
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            wait_lock=wait_lock,
+        )
 
     raise SystemExit(run_cli_command('memory.add', 'entry', handler))
 
@@ -245,6 +258,9 @@ def update_command(  # noqa: B008
     entity_refs: list[str] | None = typer.Option(None, '--entity-ref', '--entity'),
     metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
     body: str | None = typer.Option(None, '--body'),
+    dry_run: bool = typer.Option(False, '--dry-run'),
+    idempotency_key: str | None = typer.Option(None, '--idempotency-key'),
+    wait_lock: float = typer.Option(0.0, '--wait-lock', min=0.0),
     cwd: Path | None = typer.Option(None, '--cwd'),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
@@ -279,15 +295,23 @@ def update_command(  # noqa: B008
             metadata=_parse_json_option(metadata_json, field_name='metadata_json'),
         )
         update_input = _build_model(UpdateEntryInput, payload)
-        entry, mutation = update_entry(root, update_input)
-        return {
-            'entry': entry,
-            'applied': mutation.applied,
-            'artifacts': {
-                'markdown': render_entry_markdown(entry),
-                'jsonl': render_entry_jsonl(entry),
+        return execute_mutation(
+            root=root,
+            command_id='memory.update',
+            request_payload={
+                'command': 'memory.update',
+                'idempotency_key': idempotency_key,
+                'input': update_input.model_dump(mode='json'),
             },
-        }
+            apply_handler=lambda apply_root: _update_entry_result(apply_root, update_input),
+            summary_builder=lambda result: {
+                'entries_to_update': 1 if result.get('applied') else 0,
+                'events_to_create': 1 if result.get('applied') else 0,
+            },
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            wait_lock=wait_lock,
+        )
 
     raise SystemExit(run_cli_command('memory.update', 'entry', handler))
 
@@ -295,6 +319,9 @@ def update_command(  # noqa: B008
 def tag_add_command(  # noqa: B008
     resource_id: str = typer.Argument(...),
     tags: list[str] = typer.Option(..., '--tag', '--tags'),
+    dry_run: bool = typer.Option(False, '--dry-run'),
+    idempotency_key: str | None = typer.Option(None, '--idempotency-key'),
+    wait_lock: float = typer.Option(0.0, '--wait-lock', min=0.0),
     cwd: Path | None = typer.Option(None, '--cwd'),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
@@ -304,8 +331,23 @@ def tag_add_command(  # noqa: B008
             TagMutationInput,
             {'resource_id': resource_id, 'tags': tags},
         )
-        resource, mutation = add_tags(root, mutation_input)
-        return _build_resource_payload(resource, applied=mutation.applied)
+        return execute_mutation(
+            root=root,
+            command_id='memory.tag.add',
+            request_payload={
+                'command': 'memory.tag.add',
+                'idempotency_key': idempotency_key,
+                'input': mutation_input.model_dump(mode='json'),
+            },
+            apply_handler=lambda apply_root: _tag_result(apply_root, mutation_input, add=True),
+            summary_builder=lambda result: {
+                'entries_to_update': 1 if result.get('applied') else 0,
+                'events_to_create': 1 if result.get('applied') else 0,
+            },
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            wait_lock=wait_lock,
+        )
 
     raise SystemExit(run_cli_command('memory.tag.add', 'resource', handler))
 
@@ -313,6 +355,9 @@ def tag_add_command(  # noqa: B008
 def tag_remove_command(  # noqa: B008
     resource_id: str = typer.Argument(...),
     tags: list[str] = typer.Option(..., '--tag', '--tags'),
+    dry_run: bool = typer.Option(False, '--dry-run'),
+    idempotency_key: str | None = typer.Option(None, '--idempotency-key'),
+    wait_lock: float = typer.Option(0.0, '--wait-lock', min=0.0),
     cwd: Path | None = typer.Option(None, '--cwd'),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
@@ -322,8 +367,23 @@ def tag_remove_command(  # noqa: B008
             TagMutationInput,
             {'resource_id': resource_id, 'tags': tags},
         )
-        resource, mutation = remove_tags(root, mutation_input)
-        return _build_resource_payload(resource, applied=mutation.applied)
+        return execute_mutation(
+            root=root,
+            command_id='memory.tag.remove',
+            request_payload={
+                'command': 'memory.tag.remove',
+                'idempotency_key': idempotency_key,
+                'input': mutation_input.model_dump(mode='json'),
+            },
+            apply_handler=lambda apply_root: _tag_result(apply_root, mutation_input, add=False),
+            summary_builder=lambda result: {
+                'entries_to_update': 1 if result.get('applied') else 0,
+                'events_to_create': 1 if result.get('applied') else 0,
+            },
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            wait_lock=wait_lock,
+        )
 
     raise SystemExit(run_cli_command('memory.tag.remove', 'resource', handler))
 
@@ -340,6 +400,9 @@ def event_add_command(  # noqa: B008
     metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
     occurred_at: str | None = typer.Option(None, '--occurred-at'),
     body: str | None = typer.Argument(None),
+    dry_run: bool = typer.Option(False, '--dry-run'),
+    idempotency_key: str | None = typer.Option(None, '--idempotency-key'),
+    wait_lock: float = typer.Option(0.0, '--wait-lock', min=0.0),
     cwd: Path | None = typer.Option(None, '--cwd'),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
@@ -400,11 +463,20 @@ def event_add_command(  # noqa: B008
             occurred_at=occurred_at,
         )
         event_input = _build_model(CreateEventInput, payload)
-        event = add_event(root, event_input)
-        return {
-            'event': event,
-            'artifacts': {'jsonl': render_event_jsonl(event)},
-        }
+        return execute_mutation(
+            root=root,
+            command_id='memory.event.add',
+            request_payload={
+                'command': 'memory.event.add',
+                'idempotency_key': idempotency_key,
+                'input': event_input.model_dump(mode='json'),
+            },
+            apply_handler=lambda apply_root: _event_result(apply_root, event_input),
+            summary_builder=lambda _result: {'events_to_create': 1},
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            wait_lock=wait_lock,
+        )
 
     raise SystemExit(run_cli_command('memory.event.add', 'event', handler))
 
@@ -416,6 +488,9 @@ def link_command(  # noqa: B008
     provenance: str = typer.Option('explicit_user', '--provenance'),
     confidence: float = typer.Option(1.0, '--confidence'),
     metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
+    dry_run: bool = typer.Option(False, '--dry-run'),
+    idempotency_key: str | None = typer.Option(None, '--idempotency-key'),
+    wait_lock: float = typer.Option(0.0, '--wait-lock', min=0.0),
     cwd: Path | None = typer.Option(None, '--cwd'),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
@@ -431,8 +506,20 @@ def link_command(  # noqa: B008
             metadata=_parse_json_option(metadata_json, field_name='metadata_json'),
         )
         edge_input = _build_model(CreateEdgeInput, payload)
-        edge = add_edge(root, edge_input)
-        return {'edge': edge}
+        return execute_mutation(
+            root=root,
+            command_id='memory.link',
+            request_payload={
+                'command': 'memory.link',
+                'idempotency_key': idempotency_key,
+                'input': edge_input.model_dump(mode='json'),
+            },
+            apply_handler=lambda apply_root: _edge_result(apply_root, edge_input),
+            summary_builder=lambda _result: {'edges_to_create': 1},
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            wait_lock=wait_lock,
+        )
 
     raise SystemExit(run_cli_command('memory.link', 'edge', handler))
 
@@ -447,6 +534,9 @@ def entity_add_command(  # noqa: B008
     metadata_json: str | None = typer.Option(None, '--metadata', '--metadata-json'),
     description_option: str | None = typer.Option(None, '--description'),
     description: str | None = typer.Argument(None),
+    dry_run: bool = typer.Option(False, '--dry-run'),
+    idempotency_key: str | None = typer.Option(None, '--idempotency-key'),
+    wait_lock: float = typer.Option(0.0, '--wait-lock', min=0.0),
     cwd: Path | None = typer.Option(None, '--cwd'),
 ) -> None:
     root = (cwd or Path.cwd()).resolve()
@@ -482,10 +572,70 @@ def entity_add_command(  # noqa: B008
             metadata=_parse_json_option(metadata_json, field_name='metadata_json'),
         )
         entity_input = _build_model(CreateEntityInput, payload)
-        entity = add_entity(root, entity_input)
-        return {'entity': entity}
+        return execute_mutation(
+            root=root,
+            command_id='memory.entity.add',
+            request_payload={
+                'command': 'memory.entity.add',
+                'idempotency_key': idempotency_key,
+                'input': entity_input.model_dump(mode='json'),
+            },
+            apply_handler=lambda apply_root: _entity_result(apply_root, entity_input),
+            summary_builder=lambda _result: {'entities_to_create': 1},
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            wait_lock=wait_lock,
+        )
 
     raise SystemExit(run_cli_command('memory.entity.add', 'entity', handler))
+
+
+def _create_entry_result(root: Path, entry_input: CreateEntryInput) -> dict[str, Any]:
+    entry = create_entry(root, entry_input)
+    return {
+        'entry': entry,
+        'artifacts': {
+            'markdown': render_entry_markdown(entry),
+            'jsonl': render_entry_jsonl(entry),
+        },
+    }
+
+
+def _update_entry_result(root: Path, update_input: UpdateEntryInput) -> dict[str, Any]:
+    entry, mutation = update_entry(root, update_input)
+    return {
+        'entry': entry,
+        'applied': mutation.applied,
+        'artifacts': {
+            'markdown': render_entry_markdown(entry),
+            'jsonl': render_entry_jsonl(entry),
+        },
+    }
+
+
+def _tag_result(root: Path, mutation_input: TagMutationInput, *, add: bool) -> dict[str, Any]:
+    resource, mutation = (
+        add_tags(root, mutation_input) if add else remove_tags(root, mutation_input)
+    )
+    return _build_resource_payload(resource, applied=mutation.applied)
+
+
+def _event_result(root: Path, event_input: CreateEventInput) -> dict[str, Any]:
+    event = add_event(root, event_input)
+    return {
+        'event': event,
+        'artifacts': {'jsonl': render_event_jsonl(event)},
+    }
+
+
+def _edge_result(root: Path, edge_input: CreateEdgeInput) -> dict[str, Any]:
+    edge = add_edge(root, edge_input)
+    return {'edge': edge}
+
+
+def _entity_result(root: Path, entity_input: CreateEntityInput) -> dict[str, Any]:
+    entity = add_entity(root, entity_input)
+    return {'entity': entity}
 
 
 def _make_placeholder(command_id: str, human_name: str):

@@ -20,6 +20,7 @@ from cwmem.core.models import (
     EntryRecord,
     EventRecord,
     EventResource,
+    IdempotencyRecord,
     ListEntriesQuery,
     LogQuery,
     MutationResult,
@@ -30,7 +31,7 @@ from cwmem.core.models import (
     UpdateEntryInput,
     ValidationResult,
 )
-from cwmem.output.envelope import AppError
+from cwmem.output.envelope import AppError, conflict_error
 
 SCHEMA_VERSION = "3"
 
@@ -50,6 +51,17 @@ def ensure_schema(root: Path) -> Path:
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS idempotency_keys (
+                idempotency_key TEXT NOT NULL,
+                command_id TEXT NOT NULL,
+                request_hash TEXT NOT NULL,
+                request_id TEXT NOT NULL,
+                resource_ids_json TEXT NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(idempotency_key, command_id)
             );
 
             CREATE TABLE IF NOT EXISTS entries (
@@ -151,6 +163,8 @@ def ensure_schema(root: Path) -> Path:
             CREATE INDEX IF NOT EXISTS idx_entries_public_id ON entries(public_id);
             CREATE INDEX IF NOT EXISTS idx_events_public_id ON events(public_id);
             CREATE INDEX IF NOT EXISTS idx_entities_public_id ON entities(public_id);
+            CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created_at
+                ON idempotency_keys(created_at);
             CREATE INDEX IF NOT EXISTS idx_events_occurred_at ON events(occurred_at, public_id);
             CREATE INDEX IF NOT EXISTS idx_event_resources_resource_public_id
                 ON event_resources(resource_public_id, role);
@@ -678,6 +692,107 @@ def _connect(root: Path) -> sqlite3.Connection:
     _fts.ensure_fts_schema(conn)
     _emb.ensure_embeddings_schema(conn)
     return conn
+
+
+def replay_idempotent_success(
+    root: Path, *, command_id: str, idempotency_key: str, request_hash: str
+) -> dict[str, Any] | None:
+    record = get_idempotency_record(root, command_id=command_id, idempotency_key=idempotency_key)
+    if record is None:
+        return None
+    if record.request_hash != request_hash:
+        raise conflict_error(
+            "The idempotency key was already used for a different request payload.",
+            details={
+                "command_id": command_id,
+                "idempotency_key": idempotency_key,
+                "existing_request_hash": record.request_hash,
+                "request_hash": request_hash,
+                "resource_ids": record.resource_ids,
+            },
+        )
+    response = dict(record.response)
+    response["idempotency"] = {
+        "idempotency_key": idempotency_key,
+        "replayed": True,
+        "resource_ids": record.resource_ids,
+    }
+    return response
+
+
+def get_idempotency_record(
+    root: Path, *, command_id: str, idempotency_key: str
+) -> IdempotencyRecord | None:
+    conn = _connect(root)
+    try:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM idempotency_keys
+            WHERE command_id = ? AND idempotency_key = ?
+            """,
+            (command_id, idempotency_key),
+        ).fetchone()
+        if row is None:
+            return None
+        return IdempotencyRecord(
+            idempotency_key=row["idempotency_key"],
+            command_id=row["command_id"],
+            request_hash=row["request_hash"],
+            request_id=row["request_id"],
+            resource_ids=_json_load(row["resource_ids_json"]),
+            response=_json_load(row["response_json"]),
+            created_at=row["created_at"],
+        )
+    finally:
+        conn.close()
+
+
+def record_idempotent_success(
+    root: Path,
+    *,
+    command_id: str,
+    idempotency_key: str,
+    request_hash: str,
+    request_id: str,
+    resource_ids: list[str],
+    response: dict[str, Any],
+) -> None:
+    conn = _connect(root)
+    try:
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO idempotency_keys(
+                    idempotency_key,
+                    command_id,
+                    request_hash,
+                    request_id,
+                    resource_ids_json,
+                    response_json,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(idempotency_key, command_id)
+                DO UPDATE SET
+                    request_hash = excluded.request_hash,
+                    request_id = excluded.request_id,
+                    resource_ids_json = excluded.resource_ids_json,
+                    response_json = excluded.response_json,
+                    created_at = excluded.created_at
+                """,
+                (
+                    idempotency_key,
+                    command_id,
+                    request_hash,
+                    request_id,
+                    _json_dump(sorted(set(resource_ids))),
+                    _json_dump(response),
+                    _utc_now(),
+                ),
+            )
+    finally:
+        conn.close()
 
 
 def _insert_entry(conn: sqlite3.Connection, record: EntryRecord) -> None:

@@ -6,6 +6,7 @@
     "influences",
     "mentions",
     "owned_by",
+    "references",
     "related_to",
     "supersedes",
     "supports"

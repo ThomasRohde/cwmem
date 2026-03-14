@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import socket
 import time
 from collections.abc import Callable
@@ -19,6 +20,13 @@ EXIT_CODES = {
     "internal": 90,
 }
 
+_CURRENT_REQUEST_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cwmem_current_request_id", default=None
+)
+_CURRENT_COMMAND_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cwmem_current_command_id", default=None
+)
+
 
 class AppError(Exception):
     def __init__(self, error: CommandError, exit_code: int) -> None:
@@ -34,6 +42,14 @@ class AppError(Exception):
 def request_id() -> str:
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     return f"req_{timestamp}_{uuid4().hex[:8]}"
+
+
+def current_request_id() -> str | None:
+    return _CURRENT_REQUEST_ID.get()
+
+
+def current_command_id() -> str | None:
+    return _CURRENT_COMMAND_ID.get()
 
 
 def exit_code_for_error(code: str) -> int:
@@ -132,6 +148,8 @@ def internal_error(exc: Exception, *, command: str) -> CommandError:
 def run_cli_command(command: str, target_resource: str, handler: Callable[[], Any]) -> int:
     started = time.perf_counter()
     token = request_id()
+    request_context = _CURRENT_REQUEST_ID.set(token)
+    command_context = _CURRENT_COMMAND_ID.set(command)
 
     try:
         result = handler()
@@ -183,6 +201,9 @@ def run_cli_command(command: str, target_resource: str, handler: Callable[[], An
         )
         write_json(envelope)
         return EXIT_CODES["internal"]
+    finally:
+        _CURRENT_COMMAND_ID.reset(command_context)
+        _CURRENT_REQUEST_ID.reset(request_context)
 
 
 def emit_internal_failure(exc: Exception, *, command: str) -> None:
