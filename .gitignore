@@ -13,6 +13,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .pyright/
-
+.playwright-cli/
 blackbox/
 FEEDBACK*
