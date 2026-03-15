@@ -101,6 +101,49 @@ def build_guide_document() -> GuideDocument:
             "output_schema": "InteractiveTerminalSession",
         },
         {
+            "name": "gui",
+            "canonical_id": "system.gui",
+            "implemented": True,
+            "mutating": True,
+            "interactive": True,
+            "requires_tty": False,
+            "summary": "Launch the web-based GUI explorer in a browser.",
+            "aliases": [],
+            "arguments": [
+                GuideFlag(
+                    name="--cwd",
+                    required=False,
+                    kind="path",
+                    description=(
+                        "Repository root to explore. Defaults to the current "
+                        "working directory."
+                    ),
+                ),
+                GuideFlag(
+                    name="--port",
+                    required=False,
+                    kind="integer",
+                    description=(
+                        "HTTP port to bind. Defaults to an automatically selected "
+                        "free port."
+                    ),
+                ),
+                GuideFlag(
+                    name="--no-open",
+                    required=False,
+                    kind="flag",
+                    description="Do not open the browser automatically.",
+                ),
+            ],
+            "help": (
+                "Launch the web-based GUI explorer in a browser.\n\n"
+                "Starts a local FastAPI server on 127.0.0.1 and opens a "
+                "browser tab. Use --no-open to suppress browser launch. "
+                "The server runs until Ctrl+C."
+            ),
+            "output_schema": "InteractiveWebSession",
+        },
+        {
             "name": "get",
             "canonical_id": "memory.get",
             "implemented": True,
@@ -400,7 +443,12 @@ def build_guide_document() -> GuideDocument:
                     "requires_tty": True,
                     "success_stdout_contract": "interactive terminal session",
                     "failure_stdout_contract": "structured envelope",
-                }
+                },
+                "system.gui": {
+                    "requires_tty": False,
+                    "success_stdout_contract": "interactive web session on localhost",
+                    "failure_stdout_contract": "structured envelope",
+                },
             },
         },
         command_catalog=command_catalog,

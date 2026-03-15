@@ -8,7 +8,7 @@ import typer
 from typer.main import get_command
 
 from cwmem import __version__
-from cwmem.cli import graph, maintenance, read, setup, sync, tui, write
+from cwmem.cli import graph, gui, maintenance, read, setup, sync, tui, write
 from cwmem.output.envelope import (
     emit_internal_failure,
     run_cli_command,
@@ -37,6 +37,7 @@ app = typer.Typer(
 
 setup.register(app)
 tui.register(app)
+gui.register(app)
 read.register(app)
 write.register(app)
 graph.register(app)

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>cwmem GUI</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="sapphire-theme-default">
+  <header>
+    <h1>cwmem</h1>
+    <nav id="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="entries">Entries</button>
+      <button class="tab" data-tab="search">Search</button>
+      <button class="tab" data-tab="graph">Graph</button>
+      <button class="tab" data-tab="events">Events</button>
+      <button class="tab" data-tab="write">Write</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Dashboard -->
+    <section id="tab-dashboard" class="tab-content active">
+      <div id="dashboard-cards" class="cards"></div>
+      <div id="dashboard-details"></div>
+    </section>
+
+    <!-- Entries -->
+    <section id="tab-entries" class="tab-content">
+      <div class="toolbar">
+        <input type="text" id="entries-tag" placeholder="Filter by tag">
+        <select id="entries-type"><option value="">All types</option></select>
+        <select id="entries-status">
+          <option value="">All statuses</option>
+          <option value="active">active</option>
+          <option value="deprecated">deprecated</option>
+        </select>
+        <input type="text" id="entries-author" placeholder="Author">
+        <button id="entries-filter-btn" class="btn">Filter</button>
+      </div>
+      <div class="split-view">
+        <div id="entries-table-wrap" class="table-wrap"></div>
+        <div id="entries-detail" class="detail-panel hidden"></div>
+      </div>
+    </section>
+
+    <!-- Search -->
+    <section id="tab-search" class="tab-content">
+      <div class="toolbar">
+        <input type="text" id="search-q" placeholder="Search query..." class="wide">
+        <select id="search-mode">
+          <option value="">Hybrid</option>
+          <option value="lexical">Lexical</option>
+          <option value="semantic">Semantic</option>
+        </select>
+        <input type="text" id="search-tag" placeholder="Tag filter">
+        <label><input type="checkbox" id="search-expand"> Expand graph</label>
+        <button id="search-btn" class="btn">Search</button>
+      </div>
+      <div class="split-view">
+        <div id="search-results" class="table-wrap">
+          <div class="empty-state"><strong>Search your memory</strong>Type a query and press Enter or click Search. Supports hybrid (lexical + semantic), lexical-only, and semantic-only modes.</div>
+        </div>
+        <div id="search-detail" class="detail-panel hidden"></div>
+      </div>
+    </section>
+
+    <!-- Graph -->
+    <section id="tab-graph" class="tab-content">
+      <div class="toolbar">
+        <input type="text" id="graph-id" placeholder="Resource ID (empty = full overview)">
+        <label>Depth: <input type="number" id="graph-depth" value="2" min="1" max="4" style="width:50px"></label>
+        <input type="text" id="graph-relation" placeholder="Relation type (optional)">
+        <button id="graph-btn" class="btn">Show Graph</button>
+      </div>
+      <div id="graph-container">
+        <div id="cy"></div>
+        <div id="graph-sidebar">
+          <div id="graph-legend" class="card">
+            <div class="label">Legend</div>
+            <div class="legend-items">
+              <span class="legend-dot" style="background:#2563eb"></span> Entry
+              <span class="legend-dot" style="background:#36997a"></span> Event
+              <span class="legend-dot" style="background:#b85c3b"></span> Entity
+            </div>
+            <div class="legend-hint">
+              Solid line = explicit &middot; Dashed = inferred<br>
+              Click = details &middot; Double-click = re-center<br>
+              Hover = highlight connections
+            </div>
+          </div>
+          <div id="graph-layout-controls" class="card">
+            <div class="label">Layout</div>
+            <div class="layout-control">
+              <label>Repulsion <output id="out-repulsion">80000</output></label>
+              <input type="range" id="ctrl-repulsion" min="10000" max="200000" step="5000" value="80000">
+            </div>
+            <div class="layout-control">
+              <label>Edge length <output id="out-edgeLength">120</output></label>
+              <input type="range" id="ctrl-edgeLength" min="40" max="300" step="10" value="120">
+            </div>
+            <div class="layout-control">
+              <label>Gravity <output id="out-gravity">0.08</output></label>
+              <input type="range" id="ctrl-gravity" min="0.01" max="1.0" step="0.01" value="0.08">
+            </div>
+            <div class="layout-control">
+              <label>Spacing <output id="out-spacing">150</output></label>
+              <input type="range" id="ctrl-spacing" min="20" max="400" step="10" value="150">
+            </div>
+            <button class="btn" onclick="rerunLayout()" style="margin-top:0.5rem;width:100%">Re-layout</button>
+          </div>
+          <div id="graph-detail" class="detail-panel hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Events -->
+    <section id="tab-events" class="tab-content">
+      <div class="toolbar">
+        <input type="text" id="events-resource" placeholder="Resource ID">
+        <input type="text" id="events-type" placeholder="Event type">
+        <button id="events-filter-btn" class="btn">Filter</button>
+      </div>
+      <div class="split-view">
+        <div id="events-table-wrap" class="table-wrap"></div>
+        <div id="events-detail" class="detail-panel hidden"></div>
+      </div>
+    </section>
+
+    <!-- Write -->
+    <section id="tab-write" class="tab-content">
+      <div class="write-tabs">
+        <button class="write-tab active" data-form="add-entry">Add Entry</button>
+        <button class="write-tab" data-form="mutate-tags">Mutate Tags</button>
+        <button class="write-tab" data-form="link-resources">Link Resources</button>
+      </div>
+
+      <form id="form-add-entry" class="write-form active">
+        <h3>Add Entry</h3>
+        <div class="form-grid">
+          <label>Title <input type="text" name="title" required></label>
+          <label>Type
+            <select name="type">
+              <option value="note">note</option>
+              <option value="decision">decision</option>
+              <option value="principle">principle</option>
+              <option value="capability">capability</option>
+              <option value="standard">standard</option>
+              <option value="technology">technology</option>
+            </select>
+          </label>
+          <label>Status
+            <select name="status">
+              <option value="active">active</option>
+              <option value="draft">draft</option>
+              <option value="deprecated">deprecated</option>
+            </select>
+          </label>
+          <label>Author <input type="text" name="author"></label>
+          <label>Tags <input type="text" name="tags" placeholder="comma-separated"></label>
+          <label class="full-width">Body <textarea name="body" rows="5" required></textarea></label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn" onclick="submitForm('add-entry', true)">Dry Run</button>
+          <button type="button" class="btn btn-primary" onclick="submitForm('add-entry', false)">Create</button>
+        </div>
+        <pre id="result-add-entry" class="result-box hidden"></pre>
+      </form>
+
+      <form id="form-mutate-tags" class="write-form">
+        <h3>Mutate Tags</h3>
+        <div class="form-grid">
+          <label>Resource ID <input type="text" name="resource_id" required></label>
+          <label>Tags <input type="text" name="tags" placeholder="comma-separated" required></label>
+          <label>Action
+            <select name="action">
+              <option value="add">Add tags</option>
+              <option value="remove">Remove tags</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn" onclick="submitForm('mutate-tags', true)">Dry Run</button>
+          <button type="button" class="btn btn-primary" onclick="submitForm('mutate-tags', false)">Apply</button>
+        </div>
+        <pre id="result-mutate-tags" class="result-box hidden"></pre>
+      </form>
+
+      <form id="form-link-resources" class="write-form">
+        <h3>Link Resources</h3>
+        <div class="form-grid">
+          <label>Source ID <input type="text" name="source_id" required></label>
+          <label>Target ID <input type="text" name="target_id" required></label>
+          <label>Relation type <input type="text" name="relation_type" required placeholder="e.g. supports, depends_on"></label>
+          <label>Confidence <input type="number" name="confidence" value="1.0" min="0" max="1" step="0.1"></label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn" onclick="submitForm('link-resources', true)">Dry Run</button>
+          <button type="button" class="btn btn-primary" onclick="submitForm('link-resources', false)">Create</button>
+        </div>
+        <pre id="result-link-resources" class="result-box hidden"></pre>
+      </form>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/cytoscape.min.js"></script>
+  <script src="/graph.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
