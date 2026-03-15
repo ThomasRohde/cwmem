@@ -1,9 +1,0 @@
-iteration	timestamp	commit	metric_value	hypothesis	changes_summary	kept
-0	2026-03-15T12:00:00Z	baseline	1373	baseline measurement	no changes	true
-1	2026-03-15T12:10:00Z	-	818	prose compression	terse imperative style, removed filler	true
-2	2026-03-15T12:10:00Z	-	1194	frontmatter+proactive compression	tightened description, fewer bullets	false
-3	2026-03-15T12:10:00Z	d62da3d	686	structural consolidation on top of iter 1	merged sections, eliminated duplicate code blocks	true
-4	2026-03-15T12:20:00Z	-	538	code block elimination	inline commands, removed fences	false
-5	2026-03-15T12:20:00Z	-	419	word-level micro-optimization	removed articles/filler, terse examples	false
-6	2026-03-15T12:20:00Z	-	189	all-out compression	too cryptic, unusable examples	false
-7	2026-03-15T12:30:00Z	final	597	hand-crafted best-of-all	structural wins + meaningful examples + micro-compression	true

@@ -1,9 +1,0 @@
-{
-  "artifact_paths": ["skills/cwmem/SKILL.md"],
-  "eval_command": "python evaluate_skill.py",
-  "metric_name": "token_count",
-  "metric_direction": "minimize",
-  "max_iterations": 20,
-  "branch_prefix": "autoresearch",
-  "created_at": "2026-03-15T12:00:00Z"
-}
