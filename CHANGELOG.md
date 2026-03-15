@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+
+- Claude Code skill for cwmem (`skills/cwmem/`) — enables any agent to use cwmem out of the box
+- Skill reference documentation (`skills/cwmem/references/commands.md`)
+
 ## 1.3.0
 
 ### Changed
