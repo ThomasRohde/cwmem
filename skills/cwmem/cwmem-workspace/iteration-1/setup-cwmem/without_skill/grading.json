@@ -1,0 +1,11 @@
+{
+  "eval_id": 2,
+  "eval_name": "setup-cwmem",
+  "configuration": "without_skill",
+  "expectations": [
+    {"text": "asks-questions-first", "passed": false, "evidence": "Does not ask setup questions — instead searches the web to discover what cwmem is"},
+    {"text": "runs-init", "passed": false, "evidence": "Mentions 'cwmem init' speculatively but wrapped in trial-and-error; may try wrong commands first"},
+    {"text": "offers-entity-creation", "passed": false, "evidence": "Has no knowledge of entities or entity-add command"},
+    {"text": "resolves-command", "passed": false, "evidence": "Tries 'pip install cwmem', 'which cwmem' — no knowledge of uvx fallback pattern"}
+  ]
+}

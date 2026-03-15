@@ -1,0 +1,10 @@
+{
+  "eval_id": 3,
+  "eval_name": "search-memory",
+  "configuration": "with_skill",
+  "expectations": [
+    {"text": "uses-cwmem-search", "passed": true, "evidence": "Runs 'uv run cwmem search \"database layer\" --type decision' plus multiple follow-up queries"},
+    {"text": "appropriate-query", "passed": true, "evidence": "Uses 'database layer', 'SQLite', 'store data layer schema' — good vocabulary coverage"},
+    {"text": "presents-results", "passed": true, "evidence": "Structured presentation with IDs, titles, summaries; offers fallback listing if no results"}
+  ]
+}

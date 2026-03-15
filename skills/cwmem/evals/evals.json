@@ -1,0 +1,23 @@
+{
+  "skill_name": "cwmem",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just refactored the authentication middleware to use JWT instead of session cookies. Can you record this decision?",
+      "expected_output": "Should detect cwmem, check initialization, then create an entry with --type decision capturing the auth refactor rationale, and offer to sync export.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Set up cwmem in this project so we can start tracking architectural decisions.",
+      "expected_output": "Should ask the user about project type, default author, and initial entities, then run cwmem init and set things up.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "What decisions have we made about the database layer? Search our memory.",
+      "expected_output": "Should run cwmem search with appropriate query and filters, present results clearly.",
+      "files": []
+    }
+  ]
+}

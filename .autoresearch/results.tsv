@@ -1,0 +1,2 @@
+iteration	timestamp	commit	metric_value	hypothesis	changes_summary	kept
+0	2026-03-15T12:00:00Z	baseline	1373	baseline measurement	no changes	true

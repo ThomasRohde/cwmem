@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "record-decision",
+  "configuration": "with_skill",
+  "expectations": [
+    {"text": "uses-cwmem-add", "passed": true, "evidence": "Uses 'uv run cwmem add' with full flags"},
+    {"text": "sets-type-decision", "passed": true, "evidence": "Includes '--type decision'"},
+    {"text": "includes-title", "passed": true, "evidence": "Title: 'Switch authentication middleware from session cookies to JWT'"},
+    {"text": "includes-body", "passed": true, "evidence": "Body explains stateless auth, horizontal scalability, cross-service auth"},
+    {"text": "offers-sync-export", "passed": true, "evidence": "Step 3 runs 'uv run cwmem sync export'"}
+  ]
+}

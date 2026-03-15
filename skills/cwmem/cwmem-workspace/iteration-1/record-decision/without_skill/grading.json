@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "record-decision",
+  "configuration": "without_skill",
+  "expectations": [
+    {"text": "uses-cwmem-add", "passed": true, "evidence": "Uses 'uv run cwmem add' — but only because this IS the cwmem repo with CLAUDE.md context"},
+    {"text": "sets-type-decision", "passed": true, "evidence": "Includes '--type \"decision\"'"},
+    {"text": "includes-title", "passed": true, "evidence": "Title: 'Switch authentication middleware from session cookies to JWT'"},
+    {"text": "includes-body", "passed": true, "evidence": "Body explains JWT benefits, stateless auth, horizontal scaling"},
+    {"text": "offers-sync-export", "passed": true, "evidence": "Step 2 runs 'uv run cwmem sync export'"}
+  ]
+}

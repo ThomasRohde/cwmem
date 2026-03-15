@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "record-decision",
+  "prompt": "I just refactored the authentication middleware to use JWT instead of session cookies. Can you record this decision?",
+  "assertions": [
+    {"name": "uses-cwmem-add", "description": "Response uses 'cwmem add' command to create an entry"},
+    {"name": "sets-type-decision", "description": "The --type decision flag is used"},
+    {"name": "includes-title", "description": "A --title flag with a descriptive title is provided"},
+    {"name": "includes-body", "description": "A body with rationale/context is included, not just a title"},
+    {"name": "offers-sync-export", "description": "Mentions or runs 'cwmem sync export' after the write"}
+  ]
+}
