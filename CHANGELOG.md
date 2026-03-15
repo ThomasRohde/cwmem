@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
+
+### Changed
+
+- JSON output is now pretty-printed (indented) when running interactively, compact when piped
+- `--help` uses Rich-formatted panels and colors in terminals, plain text when piped
 
 ## 0.2.1
 

@@ -33,6 +33,7 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help=TOP_LEVEL_HELP,
     no_args_is_help=True,
+    rich_markup_mode="rich",
 )
 
 setup.register(app)
@@ -110,7 +111,8 @@ def _build_click_app() -> click.Command:
         subcommand.short_help = _command_summary_from_catalog(item)
         if bool(item.get("hidden", False)):
             subcommand.hidden = True
-    _disable_rich_help(command)
+    if not sys.stdout.isatty():
+        _disable_rich_help(command)
     return command
 
 
