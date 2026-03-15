@@ -88,10 +88,6 @@ function renderGraph(data) {
           'width': 'data(width)',
           'font-family': 'JetBrains Mono, monospace',
           'letter-spacing': '0.5px',
-          'font-family': 'JetBrains Mono, monospace',
-          'letter-spacing': '0.5px',
-          'font-family': 'JetBrains Mono, monospace',
-          'letter-spacing': '0.5px',
           'line-color': '#cbd5e1',
           'target-arrow-color': '#cbd5e1',
           'target-arrow-shape': 'triangle',
@@ -130,10 +126,19 @@ function renderGraph(data) {
         selector: 'node.highlight',
         style: {
           'border-width': 4,
-          'border-color': '#f59e0b',
-          'color': '#002347',
-          'font-weight': 'bold',
-          'z-index': 10,
+          'border-color': '#2563eb',
+          'color': '#0f172a',
+          'font-weight': '700',
+          'z-index': 9999,
+          'text-wrap': 'wrap',
+          'text-max-width': '250px',
+          'font-size': '11px',
+          'text-background-padding': '6px',
+          'text-background-color': '#ffffff',
+          'text-border-color': '#cbd5e1',
+          'text-border-width': 1,
+          'text-border-opacity': 1,
+          'text-margin-y': 8
         },
       },
       {
@@ -165,7 +170,7 @@ function renderGraph(data) {
     pixelRatio: 'auto',
   });
 
-  // Hover: highlight connected nodes
+  // Hover: highlight connected nodes & show full label
   cy.on('mouseover', 'node', function(evt) {
     const node = evt.target;
     const neighborhood = node.closedNeighborhood();
@@ -173,10 +178,18 @@ function renderGraph(data) {
     neighborhood.removeClass('dimmed');
     node.addClass('highlight');
     node.connectedEdges().addClass('highlight');
+    if (node.data('fullLabel')) {
+        node.data('originalLabel', node.data('label'));
+        node.data('label', node.data('fullLabel'));
+    }
   });
 
-  cy.on('mouseout', 'node', function() {
+  cy.on('mouseout', 'node', function(evt) {
+    const node = evt.target;
     cy.elements().removeClass('dimmed highlight');
+    if (node.data('originalLabel')) {
+        node.data('label', node.data('originalLabel'));
+    }
   });
 
   // Click node -> show detail
@@ -254,6 +267,7 @@ function buildElements(data) {
       data: {
         id: r.resource_id,
         label: truncLabel(r.label),
+        fullLabel: r.label,
         type: r.resource_type,
         color: NODE_COLORS[r.resource_type] || '#2563eb',
         borderColor: NODE_BORDER[r.resource_type] || '#003580',
@@ -271,6 +285,7 @@ function buildElements(data) {
         data: {
           id: n.resource_id,
           label: truncLabel(n.label),
+          fullLabel: n.label,
           type: n.resource_type,
           color: NODE_COLORS[n.resource_type] || '#2563eb',
           borderColor: NODE_BORDER[n.resource_type] || '#003580',
