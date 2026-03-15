@@ -1,81 +1,77 @@
 ---
 name: cwmem
 description: >
-  Record decisions, changes, events, and knowledge into cwmem — repo-native
-  institutional memory for any git repo. Triggers on: meaningful changes
-  (architecture decisions, process changes, meeting outcomes), user requests to
+  Record decisions, changes, events into cwmem — repo-native institutional
+  memory. Use in any git-managed repository. Triggers: meaningful changes
+  (architecture decisions, process changes, meeting outcomes), user asks to
   "remember"/"record"/"log"/"track", mentions of "cwmem"/"institutional memory"/
   "decision log"/"knowledge base", or CLAUDE.md/AGENTS.md instructions.
   Proactively offer to record important decisions.
 ---
 
-# cwmem Skill
+# cwmem
 
-Record and retrieve institutional memory for any git repo. Fast SQLite state + checked-in `memory/` artifacts.
+Institutional memory CLI. SQLite + checked-in `memory/` artifacts.
 
-## Resolve command
+## Resolve
 
-1. If `pyproject.toml` declares cwmem dependency: `uv run cwmem`
-2. Else if `cwmem` on PATH: `cwmem`
+1. `pyproject.toml` has cwmem: `uv run cwmem`
+2. On PATH: `cwmem`
 3. Else: `uvx cwmem`
 
-Store resolved prefix as `<cmd>` for the session.
+Store as `<cmd>`.
 
-## Initialization
+## Init
 
-Run `<cmd> status`. If not initialized, ask the user:
-1. What kind of repository?
-2. Default author?
-3. Initial entities to track?
+`<cmd> status` — if uninitialized, ask: 1) Repo kind? 2) Author? 3) Entities to track?
 
-Then run `<cmd> init`, create entities with `<cmd> entity-add --name "<name>" --type "<type>" "<description>"`, then `<cmd> build`.
+Then `<cmd> init`, `<cmd> entity-add --name "<name>" --type "<type>" "<desc>"` per entity, `<cmd> build`.
 
-## Write operations
+## Writes
 
-**Entries** (types: note, decision, bug, change, risk, todo, adr):
+**Entries** (note, decision, bug, change, risk, todo, adr):
 
 ```bash
-<cmd> add --title "Short title" --type decision --tag architecture \
-  --entity "ent-000001" --relate "mem-000003" \
+<cmd> add --title "Adopt JWT auth" --type decision --tag security \
+  --entity ent-000001 --relate mem-000003 \
   "Rationale and alternatives considered."
 ```
 
-`--entity`/`--relate` are optional; link to existing resources.
+`--entity`/`--relate` optional.
 
-**Events** (types: deployment, incident, review, milestone, release):
+**Events** (deployment, incident, review, milestone, release):
 
 ```bash
 <cmd> event-add --event-type deployment --tag release "Deployed v2.1.0"
 ```
 
-**Entities** — durable graph nodes (services, APIs, teams, standards):
+**Entities** (services, APIs, teams, standards):
 
 ```bash
-<cmd> entity-add --name "UserService" --type service "Handles auth and profiles"
+<cmd> entity-add --name "AuthService" --type service "Handles authentication"
 ```
 
-**Links** (types: relates_to, implements, depends_on, supersedes, caused_by, owned_by):
+**Links** (relates_to, implements, depends_on, supersedes, caused_by, owned_by):
 
 ```bash
 <cmd> link mem-000001 ent-000002 --relation-type implements
 ```
 
-## Read and sync
+## Reads
 
 ```bash
-<cmd> search "authentication refactor"
-<cmd> search "auth" --type decision --tag security
+<cmd> search "auth refactor" --type decision
 <cmd> list --type decision --limit 10
 ```
 
-After writes, run `<cmd> sync export` to update checked-in artifacts.
+After writes: `<cmd> sync export`.
 
 ## Proactive recording
 
-After meaningful work, offer to record it: architecture/process decisions, bug root causes, refactoring rationale, meeting outcomes, dependency changes, standards.
+Offer to record after meaningful work: architecture/process decisions, bug causes, refactoring rationale, meeting outcomes, dependency changes.
 
-Keep entries concise: clear title, rationale, enough context for 6-month recall.
+Concise: title, rationale, 6-month context.
 
-## Reference and safety
+## Safety
 
-Full commands: `references/commands.md`. Use `--dry-run` before unfamiliar mutations, `--idempotency-key` for retries. Never hand-edit `memory/`; parse `.ok` in JSON output.
+`references/commands.md` for full options. `--dry-run` before unfamiliar mutations, `--idempotency-key` for retries. Don't edit `memory/`. Parse `.ok` in JSON output.
