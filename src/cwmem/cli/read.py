@@ -115,7 +115,9 @@ def log_command(  # noqa: B008
 def search_command(  # noqa: B008
     q: str = typer.Argument(...),
     tag: str | None = typer.Option(None, "--tag"),
-    search_type: str | None = typer.Option(None, "--type", help="Filter by entry type (e.g. note, decision, bug), not resource type."),
+    search_type: str | None = typer.Option(
+        None, "--type", help="Filter by entry type (e.g. note, decision, bug), not resource type."
+    ),
     author: str | None = typer.Option(None, "--author"),
     date_from: str | None = typer.Option(None, "--from"),
     date_to: str | None = typer.Option(None, "--to"),
