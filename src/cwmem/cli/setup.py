@@ -71,6 +71,75 @@ def build_guide_document() -> GuideDocument:
             "output_schema": "StatusResult",
         },
         {
+            "name": "skill",
+            "canonical_id": "system.skill.install",
+            "implemented": True,
+            "mutating": True,
+            "summary": "Install the bundled cwmem skill into the current repository.",
+            "aliases": [],
+            "arguments": [
+                GuideFlag(
+                    name="--target",
+                    required=False,
+                    kind="enum",
+                    description=(
+                        "Install target selection: auto-detect Copilot/Claude surfaces "
+                        "or force copilot, claude, or agents."
+                    ),
+                ),
+                GuideFlag(
+                    name="--strategy",
+                    required=False,
+                    kind="enum",
+                    description="Materialization strategy: copy files or create a link.",
+                ),
+                GuideFlag(
+                    name="--force",
+                    required=False,
+                    kind="flag",
+                    description="Overwrite conflicting installed skill files.",
+                ),
+                GuideFlag(
+                    name="--dry-run",
+                    required=False,
+                    kind="flag",
+                    description=(
+                        "Preview resolved targets, files, and recommendations "
+                        "without writing."
+                    ),
+                ),
+                GuideFlag(
+                    name="--idempotency-key",
+                    required=False,
+                    kind="string",
+                    description="Replay-safe key for retried installs.",
+                ),
+                GuideFlag(
+                    name="--wait-lock",
+                    required=False,
+                    kind="number",
+                    description="Seconds to wait for the repository write lock before failing.",
+                ),
+                GuideFlag(
+                    name="--cwd",
+                    required=False,
+                    kind="path",
+                    description=(
+                        "Repository root to inspect and update. Defaults to the current "
+                        "working directory."
+                    ),
+                ),
+            ],
+            "help": (
+                "Install the bundled `cwmem` skill into the current repository.\n\n"
+                "Auto-detects existing Copilot and Claude customization surfaces, "
+                "falls back to `.agents/skills/cwmem` when none are found, and "
+                "returns exact recommendation paragraphs for repo instruction files "
+                "without editing them automatically."
+            ),
+            "output_schema": "SkillInstallResult",
+        },
+        {
             "name": "tui",
             "canonical_id": "system.tui",
             "implemented": True,
@@ -466,6 +535,26 @@ def build_guide_document() -> GuideDocument:
                 "required": [],
                 "additionalProperties": False,
             },
+            "system.skill.install": {
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "type": "string",
+                        "enum": ["auto", "copilot", "claude", "agents"],
+                    },
+                    "strategy": {
+                        "type": "string",
+                        "enum": ["copy", "link"],
+                    },
+                    "force": {"type": "boolean"},
+                    "dry_run": {"type": "boolean"},
+                    "idempotency_key": {"type": "string"},
+                    "wait_lock": {"type": "number", "minimum": 0},
+                    "cwd": {"type": "string"},
+                },
+                "required": [],
+                "additionalProperties": False,
+            },
             "system.tui": {
                 "type": "object",
                 "properties": {"cwd": {"type": "string"}},
@@ -512,6 +601,21 @@ def build_guide_document() -> GuideDocument:
                     "missing_paths",
                     "empty_surfaces",
                     "database_exists",
+                ]
+            },
+            "SkillInstallResult": {
+                "required": [
+                    "root",
+                    "skill",
+                    "detected_customizations",
+                    "resolved_targets",
+                    "install_strategy",
+                    "written_files",
+                    "existing_files",
+                    "skipped_files",
+                    "recommendations",
+                    "defaulted_to_agents",
+                    "applied",
                 ]
             },
             "InteractiveTerminalSession": {
@@ -667,6 +771,7 @@ def build_guide_document() -> GuideDocument:
             {"command": "cwmem guide", "canonical_id": "system.guide"},
             {"command": "cwmem init", "canonical_id": "system.init"},
             {"command": "cwmem status", "canonical_id": "system.status"},
+            {"command": "cwmem skill --dry-run", "canonical_id": "system.skill.install"},
             {"command": "cwmem tui", "canonical_id": "system.tui"},
             {
                 "command": 'cwmem add --title "Capability model" "Aligned the baseline."',

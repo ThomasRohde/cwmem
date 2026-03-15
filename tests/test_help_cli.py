@@ -17,6 +17,7 @@ def _assert_human_help(completed) -> None:
     assert "Typical flow:" in completed.stdout
     assert "Return machine-readable CLI documentation." in completed.stdout
     assert "Create runtime and tracked repository scaffolding." in completed.stdout
+    assert "Install the bundled cwmem skill into the current repository." in completed.stdout
     assert "Run lexical and semantic retrieval over memory content." in completed.stdout
     assert "Export or import checked-in collaboration artifacts." in completed.stdout
     assert "deprecate" not in completed.stdout.lower()
@@ -86,6 +87,18 @@ def test_verify_help_mentions_build_and_sync_export(run_cli, tmp_path: Path) -> 
     lowered = completed.stdout.lower()
     assert "cwmem build" in lowered
     assert "cwmem sync export" in lowered
+
+
+def test_skill_help_mentions_auto_detection_and_recommendations(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "skill", "--help")
+    assert completed.returncode == 0, completed
+    lowered = completed.stdout.lower()
+    assert "--target" in completed.stdout
+    assert "--strategy" in completed.stdout
+    assert "--idempotency-key" in completed.stdout
+    assert ".agents/skills/cwmem" in lowered
+    assert "without editing" in lowered
+    assert "automatically" in lowered
 
 
 def test_version_flags_print_package_version(run_cli, tmp_path: Path) -> None:

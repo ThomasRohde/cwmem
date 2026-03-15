@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+
+### Added
+
+- `cwmem skill` command to install the bundled skill into detected Copilot / Claude repo surfaces or `.agents/skills/cwmem`
+- Packaged skill payload under `src/cwmem/vendor/skills/cwmem/` so the installer works from the built executable
+
 ## 1.4.0
 
 ### Added

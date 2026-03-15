@@ -23,6 +23,7 @@ def test_guide_exposes_bootstrap_command_catalog(run_cli, tmp_path: Path) -> Non
     assert "system.guide" in flattened or "system.guide" in serialized_result
     assert "system.init" in flattened or "system.init" in serialized_result
     assert "system.status" in flattened or "system.status" in serialized_result
+    assert "system.skill.install" in flattened or "system.skill.install" in serialized_result
 
 
 def test_guide_mentions_bootstrap_aliases_or_catalog_entries(run_cli, tmp_path: Path) -> None:
@@ -30,7 +31,7 @@ def test_guide_mentions_bootstrap_aliases_or_catalog_entries(run_cli, tmp_path: 
     payload = parse_envelope(completed.stdout, completed.stderr, completed.returncode)
 
     serialized_result = json.dumps(payload["result"], sort_keys=True).lower()
-    for expected_fragment in ("guide", "init", "status"):
+    for expected_fragment in ("guide", "init", "status", "skill"):
         assert expected_fragment in serialized_result, (
             f"`guide` result should mention `{expected_fragment}` in the command catalog.\n"
             f"Result payload: {payload['result']!r}"
@@ -71,4 +72,21 @@ def test_guide_plan_command_lists_supported_workflow_values(run_cli, tmp_path: P
     serialized = json.dumps(plan_entry, sort_keys=True).lower()
     assert "sync-export" in serialized
     assert "sync-import" in serialized
+
+
+def test_guide_describes_skill_command_options(run_cli, tmp_path: Path) -> None:
+    completed = run_cli(tmp_path, "guide")
+    payload = parse_envelope(completed.stdout, completed.stderr, completed.returncode)
+
+    result = payload["result"]
+    assert isinstance(result, dict), result
+    command_catalog = result["command_catalog"]
+    assert isinstance(command_catalog, list), command_catalog
+    skill_entry = next(item for item in command_catalog if item.get("name") == "skill")
+
+    serialized = json.dumps(skill_entry, sort_keys=True).lower()
+    assert "system.skill.install" in serialized
+    assert "--target" in serialized
+    assert "--strategy" in serialized
+    assert ".agents/skills/cwmem" in serialized
 

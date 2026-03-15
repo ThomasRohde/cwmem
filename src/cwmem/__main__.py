@@ -8,7 +8,7 @@ import typer
 from typer.main import get_command
 
 from cwmem import __version__
-from cwmem.cli import graph, gui, maintenance, read, setup, sync, tui, write
+from cwmem.cli import graph, gui, maintenance, read, setup, skill, sync, tui, write
 from cwmem.output.envelope import (
     emit_internal_failure,
     run_cli_command,
@@ -43,6 +43,7 @@ read.register(app)
 write.register(app)
 graph.register(app)
 sync.register(app)
+skill.register(app)
 maintenance.register(app)
 
 

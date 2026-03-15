@@ -22,3 +22,11 @@ def test_project_metadata_is_complete_enough_for_release_builds() -> None:
     assert urls["Homepage"].endswith("/cwmem")
     assert urls["Repository"].endswith("/cwmem")
     assert urls["Issues"].endswith("/cwmem/issues")
+
+
+def test_bundled_skill_payload_exists_in_package_tree() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    bundled_root = repo_root / "src" / "cwmem" / "vendor" / "skills" / "cwmem"
+
+    assert (bundled_root / "SKILL.md").is_file()
+    assert (bundled_root / "references" / "commands.md").is_file()

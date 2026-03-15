@@ -104,6 +104,25 @@ cwmem verify
 Without `--body-from-stdin`, piped stdin is reserved for JSON object input when
 `cwmem add` is driven machine-to-machine.
 
+## Repo skill installer
+
+Run `cwmem skill` when you want to materialize the bundled `cwmem` skill into
+the repository you are working in.
+
+```bash
+cwmem skill --dry-run
+cwmem skill
+```
+
+Auto mode installs to `.github/skills/cwmem` for GitHub Copilot repos and
+`.claude/skills/cwmem` for Claude repos when those customization surfaces
+already exist. If neither ecosystem is detected, `cwmem skill` falls back to
+`.agents/skills/cwmem`.
+
+The command does not edit `AGENTS.md`, `.github/copilot-instructions.md`, or
+`CLAUDE.md` for you. Instead, it returns exact recommendation paragraphs you can
+paste into those files after reviewing the install result.
+
 ## Interactive TUI
 
 `cwmem tui` launches a Textual interface for humans who want to browse and
@@ -199,6 +218,7 @@ Use `cwmem guide` when you want the machine-readable command catalog, schema inf
 |---------|-----------------|
 | `cwmem guide` | Machine-readable CLI contract and workflow metadata |
 | `cwmem init` / `status` | Bootstrap and inspect repository memory surfaces |
+| `cwmem skill` | Install the bundled repo skill into detected agent surfaces or `.agents` fallback |
 | `cwmem tui` | Human-first Textual explorer with dashboard, search, graph, log, and safe add / tag / link flows |
 | `cwmem add`, `update`, `tag-add`, `event-add`, `entity-add`, `link` | Capture or mutate memory records |
 | `cwmem get`, `list`, `search`, `related`, `graph`, `log` | Read, retrieve, search, and traverse memory |
@@ -240,6 +260,7 @@ PyPI publishing uses GitHub OIDC Trusted Publisher with the `pypi` environment a
 - `README.md` — product overview and quick start
 - `CONTRIBUTING.md` — local development and release checklist
 - `AGENTS.md` — agent expectations and workflow conventions
+- `skills/cwmem/` — authoring source for the bundled repo skill payload
 
 If you want the CLI to explain itself interactively, start with:
 

@@ -94,6 +94,44 @@ class StatusResult(BaseModel):
     taxonomy_seed_files: list[str]
 
 
+class SkillMetadata(BaseModel):
+    name: str
+    description: str
+    bundle_path: str
+
+
+class SkillCustomization(BaseModel):
+    ecosystem: str
+    path: str
+    kind: Literal["install_surface", "instruction_file"]
+
+
+class SkillInstallTarget(BaseModel):
+    ecosystem: str
+    path: str
+    reason: str
+
+
+class SkillRecommendation(BaseModel):
+    path: str
+    reason: str
+    paragraph: str
+
+
+class SkillInstallResult(BaseModel):
+    root: str
+    skill: SkillMetadata
+    detected_customizations: list[SkillCustomization] = Field(default_factory=list)
+    resolved_targets: list[SkillInstallTarget] = Field(default_factory=list)
+    install_strategy: Literal["copy", "link"] = "copy"
+    written_files: list[str] = Field(default_factory=list)
+    existing_files: list[str] = Field(default_factory=list)
+    skipped_files: list[str] = Field(default_factory=list)
+    recommendations: list[SkillRecommendation] = Field(default_factory=list)
+    defaulted_to_agents: bool = False
+    applied: bool = True
+
+
 class EntryRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
