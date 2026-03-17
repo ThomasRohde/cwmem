@@ -47,6 +47,20 @@ uv run cwmem apply --plan .cwmem/plans/import-plan.json
 uv run cwmem verify
 ```
 
+## Team workflow (multi-contributor)
+
+The export manifest (`memory/manifests/export-manifest.json`) is `.gitignore`d
+to avoid merge conflicts. After pulling or merging changes from others:
+
+```bash
+cwmem sync import       # rebuild local DB from merged artifacts
+cwmem sync export       # regenerate aggregate JSONL files
+cwmem verify            # confirm consistency
+```
+
+If an aggregate JSONL file conflicts during merge, accept either side and run
+the sequence above — the correct content will be regenerated.
+
 ## Pull requests
 
 - summarize memory-impacting changes

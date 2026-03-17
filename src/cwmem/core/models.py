@@ -73,6 +73,7 @@ class GuideDocument(BaseModel):
     storage_layout: dict[str, Any]
     import_export_contract: dict[str, Any]
     identifier_syntax: dict[str, Any]
+    team_workflow: dict[str, Any]
     examples: list[dict[str, str]]
 
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.0
+
+### Changed
+
+- Export manifest (`memory/manifests/export-manifest.json`) is now `.gitignore`d to eliminate merge conflicts in team workflows
+- `cwmem init` automatically adds the manifest to `.gitignore`
+- `cwmem sync import` works without a manifest file (tolerant of fresh clones)
+- `cwmem verify` gracefully skips manifest checks when the file is absent
+- `cwmem guide` includes `team_workflow` section and `storage_layout.gitignored` metadata
+- README, CONTRIBUTING, and AGENTS docs updated with team workflow guidance
+
 ## 1.5.0
 
 ### Added

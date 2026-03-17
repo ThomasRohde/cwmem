@@ -235,6 +235,32 @@ Use `cwmem guide` when you want the machine-readable command catalog, schema inf
 
 This makes architecture memory auditable rather than hidden in a local database.
 
+## Team workflow
+
+When multiple contributors work on the same branch, the checked-in `memory/`
+artifacts merge cleanly because individual entry/event/entity markdowns live in
+separate files. The aggregate JSONL files and the export manifest are
+regenerable, so they are handled as follows:
+
+- **`memory/manifests/export-manifest.json`** is `.gitignore`d — it is only
+  used locally by `cwmem sync check` and `cwmem sync import`.
+- After pulling or merging, run `cwmem sync import` then `cwmem sync export`
+  to reconcile everyone's changes into your local database and regenerate the
+  aggregate files.
+
+Typical post-merge sequence:
+
+```bash
+git pull                # or merge the other branch
+cwmem sync import       # rebuild local DB from merged artifacts
+cwmem sync export       # regenerate JSONL aggregates from merged DB
+cwmem verify            # confirm consistency
+```
+
+If an aggregate JSONL file conflicts during merge, accept either side and
+run the sequence above — the correct content will be regenerated from the
+individual record files.
+
 ## Local quality gate
 
 Run this before opening a PR or cutting a release:

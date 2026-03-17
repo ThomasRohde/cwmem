@@ -27,6 +27,7 @@ from cwmem.core.models import (
     EntryRecord,
     EventRecord,
     ExportManifest,
+    ExportModelInfo,
     ImportChangeSet,
     ImportPlan,
     ImportResult,
@@ -79,51 +80,6 @@ def import_snapshot(
 def load_import_snapshot(source_dir: Path) -> ImportedSnapshot:
     resolved_dir = source_dir.resolve()
     manifest_path = resolved_dir / _MANIFEST_PATH
-    if not manifest_path.is_file():
-        _store._raise_validation(
-            "Export manifest is missing from the import surface.",
-            details={"manifest_path": manifest_path.as_posix()},
-            suggested_action="Run `cwmem sync export` before attempting an import.",
-        )
-
-    manifest = _load_json_object(manifest_path, ExportManifest)
-    expected_required = {
-        "entries/entries.jsonl",
-        "events/events.jsonl",
-        "graph/nodes.jsonl",
-        "graph/edges.jsonl",
-        *[relative.removeprefix("memory/") for relative in _paths.TAXONOMY_SEEDS],
-    }
-    missing_required = sorted(expected_required - set(manifest.files))
-    if missing_required:
-        _store._raise_validation(
-            "Export manifest is missing required artifact records.",
-            details={"missing_files": missing_required},
-            suggested_action="Re-run `cwmem sync export` to regenerate the manifest.",
-        )
-
-    for relative_path, expected_fingerprint in sorted(manifest.files.items()):
-        artifact_path = _resolve_artifact_path(resolved_dir, relative_path)
-        if not artifact_path.is_file():
-            _store._raise_validation(
-                "An artifact declared in the manifest does not exist.",
-                details={"path": relative_path},
-                suggested_action="Repair the `memory/` tree and retry the import.",
-            )
-        if relative_path == _MANIFEST_PATH.as_posix():
-            actual_fingerprint = _export._compute_manifest_self_fingerprint(manifest)
-        else:
-            actual_fingerprint = _export._sha256_digest(artifact_path.read_bytes())
-        if actual_fingerprint != expected_fingerprint:
-            _store._raise_validation(
-                "An artifact fingerprint does not match the manifest.",
-                details={
-                    "path": relative_path,
-                    "expected_fingerprint": expected_fingerprint,
-                    "actual_fingerprint": actual_fingerprint,
-                },
-                suggested_action="Re-run `cwmem sync export` or revert the edited artifact.",
-            )
 
     entries = _load_jsonl_records(resolved_dir / "entries" / "entries.jsonl", EntryRecord)
     events = _load_jsonl_records(resolved_dir / "events" / "events.jsonl", EventRecord)
@@ -136,8 +92,14 @@ def load_import_snapshot(source_dir: Path) -> ImportedSnapshot:
     _validate_unique_records(entities, "entity")
     _validate_unique_records(edges, "edge")
     _validate_fingerprints(entries, events, entities, edges)
-    _validate_counts(manifest, entries, events, entities, edges, taxonomy)
-    _validate_snapshot_fingerprint(manifest, entries, events, entities, edges)
+
+    if manifest_path.is_file():
+        manifest = _load_json_object(manifest_path, ExportManifest)
+        _validate_manifest_integrity(manifest, resolved_dir)
+        _validate_counts(manifest, entries, events, entities, edges, taxonomy)
+        _validate_snapshot_fingerprint(manifest, entries, events, entities, edges)
+    else:
+        manifest = _synthesize_manifest(entries, events, entities, edges, taxonomy)
 
     explicit_edges = [edge for edge in edges if not edge.is_inferred]
     inferred_edges = [edge for edge in edges if edge.is_inferred]
@@ -263,6 +225,71 @@ def apply_import_plan(root: Path, snapshot: ImportedSnapshot) -> dict[str, int]:
         }
     finally:
         conn.close()
+
+
+def _validate_manifest_integrity(manifest: ExportManifest, resolved_dir: Path) -> None:
+    expected_required = {
+        "entries/entries.jsonl",
+        "events/events.jsonl",
+        "graph/nodes.jsonl",
+        "graph/edges.jsonl",
+        *[relative.removeprefix("memory/") for relative in _paths.TAXONOMY_SEEDS],
+    }
+    missing_required = sorted(expected_required - set(manifest.files))
+    if missing_required:
+        _store._raise_validation(
+            "Export manifest is missing required artifact records.",
+            details={"missing_files": missing_required},
+            suggested_action="Re-run `cwmem sync export` to regenerate the manifest.",
+        )
+
+    for relative_path, expected_fingerprint in sorted(manifest.files.items()):
+        artifact_path = _resolve_artifact_path(resolved_dir, relative_path)
+        if not artifact_path.is_file():
+            _store._raise_validation(
+                "An artifact declared in the manifest does not exist.",
+                details={"path": relative_path},
+                suggested_action="Repair the `memory/` tree and retry the import.",
+            )
+        if relative_path == _MANIFEST_PATH.as_posix():
+            actual_fingerprint = _export._compute_manifest_self_fingerprint(manifest)
+        else:
+            actual_fingerprint = _export._sha256_digest(artifact_path.read_bytes())
+        if actual_fingerprint != expected_fingerprint:
+            _store._raise_validation(
+                "An artifact fingerprint does not match the manifest.",
+                details={
+                    "path": relative_path,
+                    "expected_fingerprint": expected_fingerprint,
+                    "actual_fingerprint": actual_fingerprint,
+                },
+                suggested_action="Re-run `cwmem sync export` or revert the edited artifact.",
+            )
+
+
+def _synthesize_manifest(
+    entries: list[EntryRecord],
+    events: list[EventRecord],
+    entities: list[EntityRecord],
+    edges: list[EdgeRecord],
+    taxonomy: dict[str, dict[str, Any]],
+) -> ExportManifest:
+    return ExportManifest(
+        export_version="1.0",
+        source_db_fingerprint=_export.compute_source_db_fingerprint(
+            entries, events, entities, edges
+        ),
+        counts={
+            "entries": len(entries),
+            "events": len(events),
+            "entities": len(entities),
+            "edges": len(edges),
+            "taxonomy_files": len(taxonomy),
+        },
+        files={},
+        model=ExportModelInfo(name="", version="", vector_dim=0),
+        generated_at=_export._derive_generated_at(entries, events, entities, edges),
+    )
 
 
 def _load_jsonl_records(path: Path, model_type: type[Any]) -> list[Any]:

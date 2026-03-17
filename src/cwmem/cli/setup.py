@@ -749,9 +749,16 @@ def build_guide_document() -> GuideDocument:
                 "memory/events/",
                 "memory/graph/",
                 "memory/taxonomy/",
-                "memory/manifests/",
                 "models/model2vec/",
             ],
+            "gitignored": [
+                "memory/manifests/export-manifest.json",
+            ],
+            "gitignored_reason": (
+                "The export manifest is fully regenerable via `cwmem sync export` "
+                "and causes merge conflicts in team workflows. `cwmem init` "
+                "ensures the .gitignore entry exists."
+            ),
         },
         import_export_contract={
             "entry_export_formats": ["markdown", "jsonl"],
@@ -767,6 +774,28 @@ def build_guide_document() -> GuideDocument:
             "request_id": "req_<UTC timestamp>_<8-char suffix>",
             "future_entry_ids": "stable internal IDs plus user-facing IDs",
         },
+        team_workflow={
+            "description": (
+                "When multiple contributors work on the same branch, individual "
+                "entry/event/entity files merge cleanly. The export manifest is "
+                ".gitignored to prevent conflicts. After pulling or merging, "
+                "reconcile with the post-merge sequence below."
+            ),
+            "post_merge_steps": [
+                "cwmem sync import",
+                "cwmem sync export",
+                "cwmem verify",
+            ],
+            "init_ensures": (
+                "`cwmem init` adds the manifest to .gitignore automatically. "
+                "No additional setup is required."
+            ),
+            "conflict_resolution": (
+                "If an aggregate JSONL file conflicts during merge, accept either "
+                "side and run the post-merge steps — the correct content will be "
+                "regenerated from the individual record files."
+            ),
+        },
         examples=[
             {"command": "cwmem guide", "canonical_id": "system.guide"},
             {"command": "cwmem init", "canonical_id": "system.init"},
@@ -781,6 +810,25 @@ def build_guide_document() -> GuideDocument:
             {"command": "cwmem log --resource mem-000001", "canonical_id": "memory.log"},
         ],
     )
+
+
+_GITIGNORE_MANIFEST_LINE = "memory/manifests/export-manifest.json"
+
+
+def _ensure_gitignore_manifest(root: Path) -> bool:
+    """Ensure .gitignore contains the export-manifest entry. Returns True if modified."""
+    gitignore_path = root / ".gitignore"
+    if gitignore_path.is_file():
+        content = gitignore_path.read_text(encoding="utf-8")
+        if _GITIGNORE_MANIFEST_LINE in content:
+            return False
+        if not content.endswith("\n"):
+            content += "\n"
+        content += f"{_GITIGNORE_MANIFEST_LINE}\n"
+        gitignore_path.write_text(content, encoding="utf-8")
+        return True
+    gitignore_path.write_text(f"{_GITIGNORE_MANIFEST_LINE}\n", encoding="utf-8")
+    return True
 
 
 def _write_seed_file(path: Path, payload: dict[str, Any]) -> bool:
@@ -847,6 +895,10 @@ def _build_init_result(root: Path) -> InitResult:
         existing.append(db_relative)
     elif db_path.exists():
         created.append(db_relative)
+
+    gitignore_updated = _ensure_gitignore_manifest(root)
+    if gitignore_updated:
+        created.append(".gitignore (manifest entry)")
 
     seed_files = [relpath(root / relative, root) for relative in TAXONOMY_SEEDS]
     return InitResult(

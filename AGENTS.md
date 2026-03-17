@@ -19,6 +19,17 @@
   - `uv run cwmem apply --plan .cwmem/plans/export-plan.json`
   - `uv run cwmem verify`
 
+## After pulling or merging
+
+The export manifest is `.gitignore`d. After a pull or merge that changes
+`memory/` artifacts, reconcile with:
+
+```bash
+cwmem sync import
+cwmem sync export
+cwmem verify
+```
+
 ## Expected local commands
 
 - `uv sync`
