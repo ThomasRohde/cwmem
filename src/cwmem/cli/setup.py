@@ -859,6 +859,55 @@ def _write_seed_file(path: Path, payload: dict[str, Any]) -> bool:
         ) from None
 
 
+_GITATTRIBUTES_MERGE_LINE = "memory/**/*.jsonl merge=cwmem-jsonl"
+
+
+def _ensure_merge_driver(root: Path) -> bool:
+    """Configure the cwmem JSONL merge driver. Returns True if any change was made."""
+    changed = False
+
+    # 1. .gitattributes (committed — shared by all contributors)
+    gitattributes_path = root / ".gitattributes"
+    if gitattributes_path.is_file():
+        content = gitattributes_path.read_text(encoding="utf-8")
+        if _GITATTRIBUTES_MERGE_LINE not in content:
+            if not content.endswith("\n"):
+                content += "\n"
+            content += f"{_GITATTRIBUTES_MERGE_LINE}\n"
+            gitattributes_path.write_text(content, encoding="utf-8")
+            changed = True
+    else:
+        gitattributes_path.write_text(f"{_GITATTRIBUTES_MERGE_LINE}\n", encoding="utf-8")
+        changed = True
+
+    # 2. .git/config (local — per clone) via git config commands
+    git_dir = root / ".git"
+    if git_dir.is_dir():
+        import subprocess
+
+        result = subprocess.run(
+            ["git", "config", "--local", "merge.cwmem-jsonl.driver"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0 or "cwmem merge-driver" not in result.stdout:
+            subprocess.run(
+                ["git", "config", "--local", "merge.cwmem-jsonl.name",
+                 "cwmem JSONL union merge"],
+                cwd=root, capture_output=True, check=False,
+            )
+            subprocess.run(
+                ["git", "config", "--local", "merge.cwmem-jsonl.driver",
+                 "cwmem merge-driver %O %A %B %L %P"],
+                cwd=root, capture_output=True, check=False,
+            )
+            changed = True
+
+    return changed
+
+
 def _build_init_result(root: Path) -> InitResult:
     created: list[str] = []
     existing: list[str] = []
@@ -899,6 +948,11 @@ def _build_init_result(root: Path) -> InitResult:
     gitignore_updated = _ensure_gitignore_manifest(root)
     if gitignore_updated:
         created.append(".gitignore (manifest entry)")
+
+    merge_driver_configured = _ensure_merge_driver(root)
+    if merge_driver_configured:
+        created.append(".gitattributes (merge driver)")
+        created.append(".git/config (merge driver)")
 
     seed_files = [relpath(root / relative, root) for relative in TAXONOMY_SEEDS]
     return InitResult(
