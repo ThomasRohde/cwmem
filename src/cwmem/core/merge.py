@@ -338,11 +338,17 @@ def union_merge(
             merged.append(theirs_r)
             from_theirs += 1
 
-    # 2. Added records
+    # 2. Added records — deduplicate by internal_id when the same
+    #    record was added on both sides (common when .cwmem/ DB leaks
+    #    across branches because it is gitignored).
+    ours_added_ids: set[str] = set()
     for r in sets.ours_added:
         merged.append(r)
+        ours_added_ids.add(r["internal_id"])
         from_ours += 1
     for r in sets.theirs_added:
+        if r["internal_id"] in ours_added_ids:
+            continue  # Already included from ours
         merged.append(r)
         from_theirs += 1
 
