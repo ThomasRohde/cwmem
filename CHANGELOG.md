@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.7.0
+
+### Added
+
+- `cwmem merge-driver` — git merge driver for JSONL files, invoked automatically during merge/rebase/cherry-pick
+- `cwmem merge driver` — same command via the `merge` subcommand group
+- `cwmem merge-resolve` — manual fallback to resolve existing JSONL conflict markers
+- `cwmem init` now auto-configures `.gitattributes` and `.git/config` for the merge driver
+- Three-way union merge algorithm using `internal_id` (ULID) as deduplication key
+- Automatic `public_id` re-sequencing when both branches increment from the same counter
+- Deduplication of records added on both sides via shared gitignored DB
+
 ## 1.6.0
 
 ### Changed
